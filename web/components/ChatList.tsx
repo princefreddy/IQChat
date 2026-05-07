@@ -59,8 +59,6 @@ export default function ChatList({ user, activeChatId, onSelectChat }: any) {
       });
       if (res.ok) {
         const createdChat = await res.json();
-        setNewChatUser('');
-        setNewChatName('');
         setViewMode('chats');
         fetchChats();
         if (createdChat && createdChat.id) {

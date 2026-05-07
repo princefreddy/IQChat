@@ -99,8 +99,6 @@ export default function ChatListScreen() {
       if (res.ok) {
         const createdChat = await res.json();
         if (createdChat && createdChat.id) {
-          setNewChatUser('');
-          setNewChatName('');
           setViewMode('chats');
           fetchChats(user);
           router.push(`/chat/${createdChat.id}`);

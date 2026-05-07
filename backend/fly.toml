@@ -12,7 +12,7 @@ primary_region = 'cdg'
   DATABASE_URL = "sqlite:////data/iqchat.db"
   UPLOAD_DIR = "/data/uploads"
 
-[mounts]
+[[mounts]]
   source = "iqchat_data"
   destination = "/data"
 [http_service]
