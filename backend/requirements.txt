@@ -10,3 +10,4 @@ python-jose[cryptography]
 aiofiles
 httpx
 beautifulsoup4
+requests

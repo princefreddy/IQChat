@@ -8,6 +8,9 @@ primary_region = 'cdg'
 
 [build]
 
+[deploy]
+  strategy = "immediate"
+
 [env]
   DATABASE_URL = "sqlite:////data/iqchat.db"
   UPLOAD_DIR = "/data/uploads"
