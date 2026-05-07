@@ -10,7 +10,7 @@ import os
 Base.metadata.create_all(bind=engine)
 
 # Ensure uploads directory exists
-UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
+UPLOAD_DIR = os.getenv("UPLOAD_DIR", os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads"))
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 app = FastAPI(title="IQChat API - MVP")
