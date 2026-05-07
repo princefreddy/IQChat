@@ -1,0 +1,233 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --bg-primary: #0B0A10;
+  --bg-secondary: #171520;
+  --bg-glass: rgba(255, 255, 255, 0.05);
+  --border-glass: rgba(255, 255, 255, 0.1);
+  --accent-gold: #D4AF37;
+  --accent-gold-gradient: linear-gradient(135deg, #D4AF37, #FFDF73, #D4AF37);
+  --accent-royal: #4169E1;
+  --text-primary: #F7FAFC;
+  --text-secondary: #A0AEC0;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: 'Outfit', sans-serif;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+}
+
+/* Base Glass Container */
+.glass-panel {
+  background: var(--bg-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-glass);
+  border-radius: 24px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+/* Royal Button */
+.btn-royal {
+  background: var(--accent-gold-gradient);
+  color: #1A1A1A;
+  font-weight: 600;
+  padding: 12px 24px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);
+}
+
+.btn-royal:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(212, 175, 55, 0.5);
+}
+
+.btn-royal:active {
+  transform: translateY(0);
+}
+.btn-royal:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Alternate Button */
+.btn-alt {
+  background: var(--bg-glass);
+  color: var(--text-primary);
+  font-weight: 500;
+  padding: 12px 24px;
+  border-radius: 12px;
+  border: 1px solid var(--border-glass);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+.btn-alt:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.btn-alt.active {
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+}
+
+/* Inputs */
+.input-royal {
+  background: rgba(0,0,0,0.2);
+  border: 1px solid var(--border-glass);
+  color: #fff;
+  padding: 12px 16px;
+  border-radius: 12px;
+  outline: none;
+  width: 100%;
+  transition: all 0.3s;
+}
+
+.input-royal:focus {
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.2);
+}
+
+/* Chat Layout structure */
+.app-container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  padding: 24px;
+  gap: 24px;
+}
+
+.sidebar {
+  width: 350px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.chat-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-glass);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-gold);
+}
+
+/* ========== ANIMATIONS ========== */
+
+/* Slide up entrance */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-up {
+  animation: slideUp 0.3s ease forwards;
+}
+
+/* Toast slide-in from right */
+@keyframes toastSlideIn {
+  from { 
+    opacity: 0; 
+    transform: translateX(100px) scale(0.95); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateX(0) scale(1); 
+  }
+}
+.toast-slide-in {
+  animation: toastSlideIn 0.35s cubic-bezier(0.21, 1.02, 0.73, 1) forwards;
+}
+
+/* Typing indicator bouncing dots */
+.typing-dots {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  height: 20px;
+}
+.typing-dot {
+  width: 7px;
+  height: 7px;
+  background: var(--accent-gold);
+  border-radius: 50%;
+  display: inline-block;
+  animation: typingBounce 1.2s ease-in-out infinite;
+}
+@keyframes typingBounce {
+  0%, 60%, 100% { 
+    transform: translateY(0); 
+    opacity: 0.4;
+  }
+  30% { 
+    transform: translateY(-8px); 
+    opacity: 1;
+  }
+}
+
+/* Skeleton shimmer effect */
+@keyframes shimmer {
+  0% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+  100% { opacity: 0.4; }
+}
+.skeleton-pulse {
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Read receipt check animation */
+@keyframes checkAppear {
+  from { 
+    opacity: 0; 
+    transform: scale(0.5); 
+  }
+  to { 
+    opacity: 1; 
+    transform: scale(1); 
+  }
+}
+.read-check {
+  animation: checkAppear 0.3s ease forwards;
+}
+
+/* File attachment hover */
+.file-attachment {
+  transition: all 0.2s ease;
+}
+.file-attachment:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Search highlight */
+.search-highlight {
+  background: rgba(212, 175, 55, 0.3);
+  border-radius: 2px;
+  padding: 0 2px;
+}

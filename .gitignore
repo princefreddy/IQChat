@@ -1,0 +1,30 @@
+# Node
+node_modules/
+.expo/
+npm-debug.log
+yarn-error.log
+
+# Next.js
+.next/
+out/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+env/
+.env
+
+# Database (Do not commit the SQLite database)
+*.db
+*.sqlite3
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
