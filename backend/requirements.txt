@@ -11,3 +11,4 @@ aiofiles
 httpx
 beautifulsoup4
 requests
+bcrypt
