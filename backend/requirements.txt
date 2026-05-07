@@ -9,3 +9,4 @@ pycryptodome
 python-jose[cryptography]
 aiofiles
 httpx
+beautifulsoup4
