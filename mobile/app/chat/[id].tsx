@@ -15,6 +15,7 @@ export default function ChatScreen() {
   const [viewImage, setViewImage] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const [isConnected, setIsConnected] = useState(true);
 
   // Typing indicator
   const [typingUser, setTypingUser] = useState<string | null>(null);
@@ -115,6 +116,18 @@ export default function ChatScreen() {
 
         ws = new WebSocket(getChatWsUrl(id as string, parsed.id));
         wsRef.current = ws;
+        
+        ws.onopen = () => {
+          setIsConnected(true);
+        };
+
+        ws.onclose = () => {
+          setIsConnected(false);
+        };
+
+        ws.onerror = () => {
+          setIsConnected(false);
+        };
         
         ws.onmessage = (event) => {
           const data = JSON.parse(event.data);
@@ -269,6 +282,11 @@ export default function ChatScreen() {
           )
         }} 
       />
+      {!isConnected && (
+        <View style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', padding: 10, alignItems: 'center', borderBottomWidth: 1, borderColor: 'rgba(239, 68, 68, 0.3)' }}>
+          <Text style={{ color: '#ff4d4f', fontSize: 13, fontWeight: 'bold' }}>⚠️ Connexion interrompue. Reconnexion...</Text>
+        </View>
+      )}
       <FlatList 
         ref={flatListRef}
         data={messages}

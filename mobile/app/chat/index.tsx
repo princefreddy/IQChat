@@ -5,6 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import PublicationsFeed from '../../components/PublicationsFeed';
 import { getAuthData, setAuthData, clearAuthData, apiFetch, BASE_URL } from '../../lib/api';
+import { ChatSkeleton } from '../../components/SkeletonLoader';
 
 export default function ChatListScreen() {
   const router = useRouter();
@@ -21,6 +22,7 @@ export default function ChatListScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [hasNewFeed, setHasNewFeed] = useState(false);
+  const [loading, setLoading] = useState(true);
   
   const [editName, setEditName] = useState('');
   const [editAvatar, setEditAvatar] = useState('');
@@ -42,14 +44,16 @@ export default function ChatListScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      setLoading(true);
       getAuthData().then(auth => {
         if (!auth?.token) {
           router.replace('/');
         } else {
           setUser(auth.user);
           setToken(auth.token);
-          fetchChats(auth.user);
-          fetchDirectory();
+          Promise.all([fetchChats(auth.user), fetchDirectory()]).then(() => {
+            setLoading(false);
+          });
         }
       });
       
@@ -329,6 +333,8 @@ export default function ChatListScreen() {
 
       {viewMode === 'feed' ? (
          <PublicationsFeed user={user} />
+      ) : loading ? (
+         <ChatSkeleton />
       ) : (
          <FlatList 
            data={viewMode === 'chats' ? chats : directory.filter(u => {

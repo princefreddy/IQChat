@@ -12,6 +12,7 @@ export default function ChatWindow({ user, chatId }: any) {
   const [loading, setLoading] = useState(true);
   const [showAddMember, setShowAddMember] = useState(false);
   const [viewImage, setViewImage] = useState<string | null>(null);
+  const [isConnected, setIsConnected] = useState(true);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -118,6 +119,18 @@ export default function ChatWindow({ user, chatId }: any) {
 
     const ws = new WebSocket(getChatWsUrl(chatId, user.id));
     wsRef.current = ws;
+    
+    ws.onopen = () => {
+      setIsConnected(true);
+    };
+
+    ws.onclose = () => {
+      setIsConnected(false);
+    };
+
+    ws.onerror = () => {
+      setIsConnected(false);
+    };
     
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
@@ -317,7 +330,22 @@ export default function ChatWindow({ user, chatId }: any) {
            )}
         </div>
       </div>
-
+      {/* Connection Offline Alert Banner */}
+      {!isConnected && (
+        <div style={{ 
+          backgroundColor: 'rgba(239, 68, 68, 0.15)', 
+          borderBottom: '1px solid rgba(239, 68, 68, 0.3)', 
+          padding: '8px 24px', 
+          fontSize: '13px', 
+          color: '#ff4d4f', 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '8px', 
+          animation: 'slideUp 0.3s ease' 
+        }}>
+          <span className="skeleton-pulse">⚠️</span> Connexion royale interrompue. Tentative de reconnexion...
+        </div>
+      )}
       {/* Search Bar */}
       {showSearch && (
         <div className="animate-slide-up" style={{ padding: '8px 24px', borderBottom: '1px solid var(--border-glass)', display: 'flex', gap: '8px', alignItems: 'center' }}>

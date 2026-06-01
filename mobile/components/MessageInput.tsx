@@ -5,6 +5,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { Audio } from 'expo-av';
 import { uploadFile } from '../lib/api';
+import * as Haptics from 'expo-haptics';
 
 export default function MessageInput({ onSend, onTyping, replyingTo, onCancelReply }: { onSend: (data: any) => void; onTyping?: (isTyping: boolean) => void; replyingTo?: any; onCancelReply?: () => void }) {
   const [content, setContent] = useState('');
@@ -29,6 +30,7 @@ export default function MessageInput({ onSend, onTyping, replyingTo, onCancelRep
     try {
       const permission = await Audio.requestPermissionsAsync();
       if (permission.status === 'granted') {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: true,
           playsInSilentModeIOS: true,
@@ -52,6 +54,7 @@ export default function MessageInput({ onSend, onTyping, replyingTo, onCancelRep
     if (timerRef.current) clearInterval(timerRef.current);
     
     try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await recording.stopAndUnloadAsync();
       const uri = recording.getURI();
       if (!uri) return;
@@ -80,6 +83,7 @@ export default function MessageInput({ onSend, onTyping, replyingTo, onCancelRep
     setIsRecording(false);
     if (timerRef.current) clearInterval(timerRef.current);
     try {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       await recording.stopAndUnloadAsync();
     } catch (err) {}
     setRecording(null);
@@ -230,6 +234,8 @@ export default function MessageInput({ onSend, onTyping, replyingTo, onCancelRep
       computedVisibleAt = delayedDate.toISOString();
     }
 
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
     onSend({
       content: content || (pendingFile ? `📎 ${pendingFile.file_name}` : ''),
       type: finalType,
@@ -279,7 +285,10 @@ export default function MessageInput({ onSend, onTyping, replyingTo, onCancelRep
         {['normal', 'hidden', 'ephemeral', 'delayed'].map(type => (
           <TouchableOpacity 
             key={type} 
-            onPress={() => setMsgType(type)}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setMsgType(type);
+            }}
             style={[styles.toggleBtn, msgType === type && styles.activeToggle]}
           >
             <Text style={[styles.toggleText, msgType === type && styles.activeToggleText]}>
@@ -288,7 +297,10 @@ export default function MessageInput({ onSend, onTyping, replyingTo, onCancelRep
           </TouchableOpacity>
         ))}
         <TouchableOpacity 
-          onPress={() => setIsAnonymous(!isAnonymous)}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setIsAnonymous(!isAnonymous);
+          }}
           style={[styles.toggleBtn, isAnonymous && styles.activeToggle]}
         >
           <Text style={[styles.toggleText, isAnonymous && styles.activeToggleText]}>

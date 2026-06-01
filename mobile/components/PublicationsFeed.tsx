@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, FlatList, Image, Linking, Refr
 import { useFocusEffect } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
 import { apiFetch, BASE_URL } from '../lib/api';
+import { PublicationSkeleton } from './SkeletonLoader';
 
 const MAX_CHARS = 500;
 
@@ -10,6 +11,7 @@ export default function PublicationsFeed({ user }: any) {
   const [publications, setPublications] = useState<any[]>([]);
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [shareConfig, setShareConfig] = useState<any>(null);
   const [myChats, setMyChats] = useState<any[]>([]);
@@ -19,7 +21,9 @@ export default function PublicationsFeed({ user }: any) {
     try {
       const res = await apiFetch('/publications/');
       if (res.ok) setPublications(await res.json());
-    } catch(err) {}
+    } catch(err) {} finally {
+      setInitialLoading(false);
+    }
   };
 
   useFocusEffect(
@@ -233,42 +237,46 @@ export default function PublicationsFeed({ user }: any) {
          </View>
        </View>
 
-       <FlatList 
-         data={publications.filter(p => !searchQuery || p.author_username.toLowerCase().includes(searchQuery.toLowerCase()) || (p.author_full_name && p.author_full_name.toLowerCase().includes(searchQuery.toLowerCase())))}
-         keyExtractor={item => item.id}
-         renderItem={renderItem}
-         contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
-         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#C5A03B" />}
-         ListHeaderComponent={
-            <View style={{ padding: 16, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: '#333', marginBottom: 24 }}>
-              <View style={{ flexDirection: 'row', gap: 12 }}>
-                <Image source={{ uri: user?.avatar_url }} style={{ width: 40, height: 40, borderRadius: 20 }} />
-                <TextInput 
-                  placeholder="Que voulez-vous partager ?"
-                  placeholderTextColor="#888"
-                  value={content}
-                  onChangeText={setContent}
-                  multiline
-                  maxLength={MAX_CHARS + 50}
-                  style={{ flex: 1, color: '#FFF', minHeight: 60, fontSize: 16, textAlignVertical: 'top' }}
-                />
-              </View>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
-                <Text style={{ 
-                  fontSize: 12, 
-                  color: isOverLimit ? '#ff4d4f' : charsLeft < 50 ? '#fbbf24' : '#888',
-                  fontWeight: isOverLimit ? 'bold' : 'normal',
-                }}>
-                  {charsLeft} caractères restants
-                </Text>
-                <TouchableOpacity onPress={handlePost} disabled={loading || !content.trim() || isOverLimit} style={{ backgroundColor: '#2E5B88', paddingVertical: 8, paddingHorizontal: 20, borderRadius: 20, opacity: (content.trim() && !isOverLimit) ? 1 : 0.5 }}>
-                  <Text style={{ color: '#FFF', fontWeight: 'bold' }}>{loading ? '⏳...' : 'Publier'}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-         }
-         ListEmptyComponent={<Text style={{ color: '#888', textAlign: 'center', marginTop: 40 }}>Aucune publication pour le moment.</Text>}
-       />
+       {initialLoading ? (
+          <PublicationSkeleton />
+       ) : (
+          <FlatList 
+            data={publications.filter(p => !searchQuery || p.author_username.toLowerCase().includes(searchQuery.toLowerCase()) || (p.author_full_name && p.author_full_name.toLowerCase().includes(searchQuery.toLowerCase())))}
+            keyExtractor={item => item.id}
+            renderItem={renderItem}
+            contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#C5A03B" />}
+            ListHeaderComponent={
+               <View style={{ padding: 16, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: '#333', marginBottom: 24 }}>
+                 <View style={{ flexDirection: 'row', gap: 12 }}>
+                   <Image source={{ uri: user?.avatar_url }} style={{ width: 40, height: 40, borderRadius: 20 }} />
+                   <TextInput 
+                     placeholder="Que voulez-vous partager ?"
+                     placeholderTextColor="#888"
+                     value={content}
+                     onChangeText={setContent}
+                     multiline
+                     maxLength={MAX_CHARS + 50}
+                     style={{ flex: 1, color: '#FFF', minHeight: 60, fontSize: 16, textAlignVertical: 'top' }}
+                   />
+                 </View>
+                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+                   <Text style={{ 
+                     fontSize: 12, 
+                     color: isOverLimit ? '#ff4d4f' : charsLeft < 50 ? '#fbbf24' : '#888',
+                     fontWeight: isOverLimit ? 'bold' : 'normal',
+                   }}>
+                     {charsLeft} caractères restants
+                   </Text>
+                   <TouchableOpacity onPress={handlePost} disabled={loading || !content.trim() || isOverLimit} style={{ backgroundColor: '#2E5B88', paddingVertical: 8, paddingHorizontal: 20, borderRadius: 20, opacity: (content.trim() && !isOverLimit) ? 1 : 0.5 }}>
+                     <Text style={{ color: '#FFF', fontWeight: 'bold' }}>{loading ? '⏳...' : 'Publier'}</Text>
+                   </TouchableOpacity>
+                 </View>
+               </View>
+            }
+            ListEmptyComponent={<Text style={{ color: '#888', textAlign: 'center', marginTop: 40 }}>Aucune publication pour le moment.</Text>}
+          />
+       )}
 
        {/* Share Modal */}
        <Modal visible={!!shareConfig} transparent animationType="fade">

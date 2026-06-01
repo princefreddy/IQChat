@@ -16,6 +16,7 @@ import {
 import { useRouter } from 'expo-router';
 import { getAuthData, setAuthData, BASE_URL } from '../lib/api';
 import { Feather } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 
 export default function AuthScreen() {
   const router = useRouter();
@@ -42,6 +43,7 @@ export default function AuthScreen() {
   }, []);
 
   const handleSubmit = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSubmitting(true);
     try {
       let res, data;
@@ -57,6 +59,7 @@ export default function AuthScreen() {
       } else {
         if (!username || !email || !password || !fullName) { setSubmitting(false); return; }
         if (password.length < 6) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
           Alert.alert('Erreur', 'Le mot de passe doit contenir au moins 6 caractères');
           setSubmitting(false);
           return;
@@ -73,12 +76,15 @@ export default function AuthScreen() {
       }
 
       if (res.ok) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         await setAuthData({ token: data.token, user: data.user });
         router.replace('/chat');
       } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         Alert.alert('Erreur', data.detail || 'Authentification échouée');
       }
     } catch (e: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Erreur Réseau', e.message || 'Impossible de joindre le serveur');
     }
     setSubmitting(false);
@@ -120,13 +126,21 @@ export default function AuthScreen() {
           {/* Custom Royal Tabs */}
           <View style={styles.toggleRow}>
              <TouchableOpacity 
-               onPress={() => { setIsLogin(true); setShowPassword(false); }} 
+               onPress={() => {
+                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                 setIsLogin(true);
+                 setShowPassword(false);
+               }} 
                style={[styles.toggleBtn, isLogin && styles.activeToggle]}
              >
                <Text style={[styles.toggleText, isLogin && styles.activeToggleText]}>Connexion</Text>
              </TouchableOpacity>
              <TouchableOpacity 
-               onPress={() => { setIsLogin(false); setShowPassword(false); }} 
+               onPress={() => {
+                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                 setIsLogin(false);
+                 setShowPassword(false);
+               }} 
                style={[styles.toggleBtn, !isLogin && styles.activeToggle]}
              >
                <Text style={[styles.toggleText, !isLogin && styles.activeToggleText]}>Inscription</Text>
