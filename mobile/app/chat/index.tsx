@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import PublicationsFeed from '../../components/PublicationsFeed';
-import { getAuthData, setAuthData, clearAuthData, apiFetch, BASE_URL } from '../../lib/api';
+import { getAuthData, setAuthData, clearAuthData, apiFetch, uploadFile, BASE_URL } from '../../lib/api';
 import { ChatSkeleton } from '../../components/SkeletonLoader';
 
 export default function ChatListScreen() {
@@ -27,6 +27,7 @@ export default function ChatListScreen() {
   const [editName, setEditName] = useState('');
   const [editAvatar, setEditAvatar] = useState('');
   const [editPassword, setEditPassword] = useState('');
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const fetchChats = async (usr: any) => {
     try {
@@ -261,14 +262,37 @@ export default function ChatListScreen() {
             <View style={{ alignItems: 'center', marginBottom: 24 }}>
               <TouchableOpacity
                 onPress={async () => {
-                  let result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.5, base64: true });
-                  if (!result.canceled && result.assets[0].base64) {
-                     setEditAvatar(`data:image/jpeg;base64,${result.assets[0].base64}`);
+                  if (uploadingAvatar) return;
+                  let result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.5 });
+                  if (!result.canceled && result.assets[0].uri) {
+                     setUploadingAvatar(true);
+                     try {
+                        const asset = result.assets[0];
+                        const fileName = asset.fileName || `avatar_${Date.now()}.jpg`;
+                        const uploaded = await uploadFile(asset.uri, fileName, 'image/jpeg');
+                        setEditAvatar(uploaded.url);
+                     } catch (err: any) {
+                        Alert.alert("Erreur", err.message || "Impossible de téléverser la photo de profil");
+                     } finally {
+                        setUploadingAvatar(false);
+                     }
                   }
                 }}
                 style={{ position: 'relative' }}
+                disabled={uploadingAvatar}
               >
-                {editAvatar ? <Image source={{ uri: editAvatar }} style={{ width: 100, height: 100, borderRadius: 50, borderWidth: 2, borderColor: '#C5A03B' }} /> : <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#333' }}><Text style={{ fontSize: 40 }}>📸</Text></View>}
+                {editAvatar ? (
+                  <Image source={{ uri: editAvatar }} style={{ width: 100, height: 100, borderRadius: 50, borderWidth: 2, borderColor: '#C5A03B' }} />
+                ) : (
+                  <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#333' }}>
+                    <Text style={{ fontSize: 40 }}>📸</Text>
+                  </View>
+                )}
+                {uploadingAvatar && (
+                  <View style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 50, justifyContent: 'center', alignItems: 'center' }}>
+                     <ActivityIndicator size="small" color="#C5A03B" />
+                  </View>
+                )}
                 <View style={{ position: 'absolute', bottom: 0, right: 0, backgroundColor: '#C5A03B', borderRadius: 16, width: 32, height: 32, justifyContent: 'center', alignItems: 'center', borderWidth: 3, borderColor: '#111D36' }}><Text style={{ fontSize: 14 }}>✏️</Text></View>
               </TouchableOpacity>
             </View>

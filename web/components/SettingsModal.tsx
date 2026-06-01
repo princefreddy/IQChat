@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect } from 'react';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, uploadFile } from '@/lib/api';
 import { useToast } from './ToastProvider';
 
 export default function SettingsModal({ user, onClose, onSave }: any) {
@@ -8,6 +8,7 @@ export default function SettingsModal({ user, onClose, onSave }: any) {
   const [avatarUrl, setAvatarUrl] = useState(user.avatar_url || '');
   const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const { showToast } = useToast();
 
@@ -62,20 +63,27 @@ export default function SettingsModal({ user, onClose, onSave }: any) {
            </div>
            
            {/* Avatar Editor */}
-           <div style={{ display: 'flex', alignItems: 'center', gap: '16px', background: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '12px', border: '1px solid var(--border-glass)' }}>
-               {avatarUrl ? <img src={avatarUrl} style={{ width: '48px', height: '48px', borderRadius: '24px', objectFit: 'cover' }} /> : <div style={{ width: '48px', height: '48px', borderRadius: '24px', background: 'var(--accent-royal)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFF' }}>📸</div>}
-               <input type="file" accept="image/*" onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                     const reader = new FileReader();
-                     reader.onloadend = () => setAvatarUrl(reader.result as string);
-                     reader.readAsDataURL(file);
-                  }
-               }} style={{ display: 'none' }} id="avatar-upload-web" />
-               <label htmlFor="avatar-upload-web" style={{ cursor: 'pointer', color: 'var(--accent-gold)', fontWeight: 'bold' }}>
-                  Modifier la photo...
-               </label>
-           </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', background: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '12px', border: '1px solid var(--border-glass)' }}>
+                {avatarUrl ? <img src={avatarUrl} style={{ width: '48px', height: '48px', borderRadius: '24px', objectFit: 'cover' }} /> : <div style={{ width: '48px', height: '48px', borderRadius: '24px', background: 'var(--accent-royal)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFF' }}>📸</div>}
+                <input type="file" accept="image/*" onChange={async (e) => {
+                   const file = e.target.files?.[0];
+                   if (file) {
+                      setUploadingAvatar(true);
+                      try {
+                         const uploaded = await uploadFile(file);
+                         setAvatarUrl(uploaded.url);
+                         showToast('Photo téléversée !', 'success');
+                      } catch (err: any) {
+                         showToast(err.message || "Échec du téléversement de l'image", 'error');
+                      } finally {
+                         setUploadingAvatar(false);
+                      }
+                   }
+                }} style={{ display: 'none' }} id="avatar-upload-web" />
+                <label htmlFor="avatar-upload-web" style={{ cursor: uploadingAvatar ? 'not-allowed' : 'pointer', color: 'var(--accent-gold)', fontWeight: 'bold' }}>
+                   {uploadingAvatar ? 'Téléversement...' : 'Modifier la photo...'}
+                </label>
+            </div>
 
            <div>
               <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Nouveau Mot de passe (optionnel)</label>
