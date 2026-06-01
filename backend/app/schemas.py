@@ -41,9 +41,13 @@ class MessageCreate(BaseModel):
     file_url: Optional[str] = None
     file_type: Optional[str] = None
     file_name: Optional[str] = None
+    reply_to_id: Optional[str] = None
 
 class ReactionUpdate(BaseModel):
     emoji: str
+
+class MessageUpdateContent(BaseModel):
+    content: str
 
 class MessageOut(BaseModel):
     id: str
@@ -59,9 +63,13 @@ class MessageOut(BaseModel):
     is_read: bool = False
     visible_at: Optional[datetime] = None
     created_at: datetime
+    expires_at: Optional[datetime] = None
     file_url: Optional[str] = None
     file_type: Optional[str] = None
     file_name: Optional[str] = None
+    reply_to_id: Optional[str] = None
+    reply_to_content: Optional[str] = None
+    reply_to_sender: Optional[str] = None
 
     class Config:
         from_attributes = True

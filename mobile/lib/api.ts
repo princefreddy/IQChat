@@ -5,8 +5,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Change this to your machine's local IP for physical device testing
-const BASE_URL = 'https://iqchatbackend.fly.dev';
-const WS_BASE = 'wss://iqchatbackend.fly.dev';
+const BASE_URL = 'http://192.168.1.42:8000';
+const WS_BASE = 'ws://192.168.1.42:8000';
 
 export interface AuthData {
   token: string;

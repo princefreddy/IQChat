@@ -12,3 +12,5 @@ httpx
 beautifulsoup4
 requests
 bcrypt
+psycopg2-binary
+boto3

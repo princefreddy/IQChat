@@ -179,9 +179,14 @@ def get_chat(id: str, user_id: str, db: Session = Depends(get_db)):
     members = db.query(models.ChatMember).filter(models.ChatMember.chat_id == id).all()
     messages = db.query(models.Message).filter(models.Message.chat_id == id).order_by(models.Message.created_at.asc()).all()
     
-    # Batch load all users for members and message senders
+    # Batch load reply messages
+    reply_ids = {msg.reply_to_id for msg in messages if msg.reply_to_id}
+    reply_msgs = {m.id: m for m in db.query(models.Message).filter(models.Message.id.in_(reply_ids)).all()} if reply_ids else {}
+    
+    # Batch load all users for members, message senders, and reply senders
     all_user_ids = {m.user_id for m in members}
     all_user_ids.update({msg.sender_id for msg in messages if msg.sender_id})
+    all_user_ids.update({rm.sender_id for rm in reply_msgs.values() if rm.sender_id})
     all_users = {u.id: u for u in db.query(models.User).filter(models.User.id.in_(all_user_ids)).all()}
     
     member_outs = []
@@ -206,6 +211,20 @@ def get_chat(id: str, user_id: str, db: Session = Depends(get_db)):
             if user:
                 sender_username = user.username
                 sender_avatar = user.avatar_url
+                
+        reply_to_content = None
+        reply_to_sender = None
+        if msg.reply_to_id and msg.reply_to_id in reply_msgs:
+            rm = reply_msgs[msg.reply_to_id]
+            reply_to_content = rm.content
+            if rm.file_type == 'audio':
+                reply_to_content = '🎤 Message vocal'
+            elif rm.file_type:
+                reply_to_content = '📎 Pièce jointe'
+            if rm.sender_id and not rm.is_anonymous:
+                ru = all_users.get(rm.sender_id)
+                if ru:
+                    reply_to_sender = ru.username
         
         msg_outs.append(schemas.MessageOut(
             id=msg.id,
@@ -219,7 +238,14 @@ def get_chat(id: str, user_id: str, db: Session = Depends(get_db)):
             ttl=msg.ttl,
             reaction=msg.reaction,
             is_read=msg.is_read,
-            created_at=msg.created_at
+            created_at=msg.created_at,
+            expires_at=msg.expires_at,
+            file_url=msg.file_url,
+            file_type=msg.file_type,
+            file_name=msg.file_name,
+            reply_to_id=msg.reply_to_id,
+            reply_to_content=reply_to_content,
+            reply_to_sender=reply_to_sender,
         ))
 
     return {

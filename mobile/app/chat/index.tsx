@@ -191,7 +191,7 @@ export default function ChatListScreen() {
         </View>
         <View style={{ alignItems: 'flex-end', gap: 4 }}>
           {item.status === 'pending' ? (
-             <Text style={{ fontSize: 10, color: '#D4AF37' }}>
+             <Text style={{ fontSize: 10, color: '#C5A03B' }}>
                {item.members?.find((m: any) => m.user_id === user.id)?.role === 'admin' ? '⏳ Envoi...' : '⏳ Invitation'}
              </Text>
           ) : (
@@ -225,7 +225,7 @@ export default function ChatListScreen() {
         </View>
         {user.username === 'admin' && item.username !== 'admin' && (
            <TouchableOpacity 
-             style={{ padding: 6, borderRadius: 8, borderWidth: 1, borderColor: item.is_banned ? '#4ade80' : '#ff4d4f', backgroundColor: item.is_banned ? '#171520' : 'rgba(255, 77, 79, 0.1)' }}
+             style={{ padding: 6, borderRadius: 8, borderWidth: 1, borderColor: item.is_banned ? '#4ade80' : '#ff4d4f', backgroundColor: item.is_banned ? '#111D36' : 'rgba(255, 77, 79, 0.1)' }}
              onPress={() => handleToggleBan(item.id, item.is_banned)}
            >
               <Text style={{ color: item.is_banned ? '#4ade80' : '#ff4d4f', fontWeight: 'bold', fontSize: 12 }}>
@@ -264,8 +264,8 @@ export default function ChatListScreen() {
                 }}
                 style={{ position: 'relative' }}
               >
-                {editAvatar ? <Image source={{ uri: editAvatar }} style={{ width: 100, height: 100, borderRadius: 50, borderWidth: 2, borderColor: '#D4AF37' }} /> : <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#333' }}><Text style={{ fontSize: 40 }}>📸</Text></View>}
-                <View style={{ position: 'absolute', bottom: 0, right: 0, backgroundColor: '#D4AF37', borderRadius: 16, width: 32, height: 32, justifyContent: 'center', alignItems: 'center', borderWidth: 3, borderColor: '#171520' }}><Text style={{ fontSize: 14 }}>✏️</Text></View>
+                {editAvatar ? <Image source={{ uri: editAvatar }} style={{ width: 100, height: 100, borderRadius: 50, borderWidth: 2, borderColor: '#C5A03B' }} /> : <View style={{ width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#333' }}><Text style={{ fontSize: 40 }}>📸</Text></View>}
+                <View style={{ position: 'absolute', bottom: 0, right: 0, backgroundColor: '#C5A03B', borderRadius: 16, width: 32, height: 32, justifyContent: 'center', alignItems: 'center', borderWidth: 3, borderColor: '#111D36' }}><Text style={{ fontSize: 14 }}>✏️</Text></View>
               </TouchableOpacity>
             </View>
 
@@ -339,7 +339,7 @@ export default function ChatListScreen() {
            keyExtractor={item => item.id}
            renderItem={viewMode === 'chats' ? renderChatItem : renderDirItem}
            contentContainerStyle={{ paddingBottom: 100 }}
-           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#D4AF37" />}
+           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#C5A03B" />}
            ListEmptyComponent={<Text style={{ color: '#888', textAlign: 'center', marginTop: 20 }}>Rien à afficher.</Text>}
          />
       )}
@@ -364,28 +364,28 @@ export default function ChatListScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0B0A10' },
+  container: { flex: 1, backgroundColor: '#0A1128' },
   toggleBtn: { flex: 1, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: '#333', alignItems: 'center' },
-  activeToggle: { backgroundColor: '#D4AF37', borderColor: '#D4AF37' },
+  activeToggle: { backgroundColor: '#C5A03B', borderColor: '#C5A03B' },
   toggleText: { color: '#FFF', fontWeight: 'bold' },
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  modalContainer: { backgroundColor: '#171520', padding: 24, borderTopLeftRadius: 32, borderTopRightRadius: 32, borderWidth: 1, borderBottomWidth: 0, borderColor: '#333' },
-  modalTitle: { color: '#D4AF37', fontSize: 24, fontWeight: 'bold', marginBottom: 0 },
+  modalContainer: { backgroundColor: '#111D36', padding: 24, borderTopLeftRadius: 32, borderTopRightRadius: 32, borderWidth: 1, borderBottomWidth: 0, borderColor: '#333' },
+  modalTitle: { color: '#C5A03B', fontSize: 24, fontWeight: 'bold', marginBottom: 0 },
   createBox: { padding: 16, borderBottomWidth: 1, borderColor: '#222' },
   input: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', color: '#FFF', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#333' },
   modalInput: { backgroundColor: 'rgba(0,0,0,0.3)', color: '#FFF', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: '#333' },
-  createBtn: { height: 48, backgroundColor: '#D4AF37', borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
+  createBtn: { height: 48, backgroundColor: '#C5A03B', borderRadius: 12, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
   createBtnText: { fontSize: 16, fontWeight: 'bold' },
   chatItem: { flexDirection: 'row', padding: 16, borderBottomWidth: 1, borderColor: 'rgba(255,255,255,0.05)', alignItems: 'center', gap: 12 },
   chatAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(212,175,55,0.2)', alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: '#D4AF37', fontSize: 20, fontWeight: 'bold' },
+  avatarText: { color: '#C5A03B', fontSize: 20, fontWeight: 'bold' },
   chatName: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
   chatType: { color: '#888', fontSize: 12 },
-  onlineDot: { position: 'absolute', bottom: 0, right: 0, width: 14, height: 14, backgroundColor: '#4ade80', borderRadius: 7, borderWidth: 2, borderColor: '#0B0A10' },
-  onlineDotChatItem: { position: 'absolute', bottom: 0, right: 0, width: 12, height: 12, backgroundColor: '#4ade80', borderRadius: 6, borderWidth: 2, borderColor: '#0B0A10' },
-  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#171520', padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderColor: '#333' },
+  onlineDot: { position: 'absolute', bottom: 0, right: 0, width: 14, height: 14, backgroundColor: '#4ade80', borderRadius: 7, borderWidth: 2, borderColor: '#0A1128' },
+  onlineDotChatItem: { position: 'absolute', bottom: 0, right: 0, width: 12, height: 12, backgroundColor: '#4ade80', borderRadius: 6, borderWidth: 2, borderColor: '#0A1128' },
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#111D36', padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderColor: '#333' },
   userInfo: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   userAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#FFF' },
   userName: { color: '#FFF', fontWeight: 'bold' },
-  userStatus: { color: '#D4AF37', fontSize: 12 }
+  userStatus: { color: '#C5A03B', fontSize: 12 }
 });

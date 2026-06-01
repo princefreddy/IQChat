@@ -1,15 +1,15 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
 
 :root {
-  --bg-primary: #0B0A10;
-  --bg-secondary: #171520;
-  --bg-glass: rgba(255, 255, 255, 0.05);
-  --border-glass: rgba(255, 255, 255, 0.1);
-  --accent-gold: #D4AF37;
-  --accent-gold-gradient: linear-gradient(135deg, #D4AF37, #FFDF73, #D4AF37);
-  --accent-royal: #4169E1;
+  --bg-primary: #0A1128;
+  --bg-secondary: #101F42;
+  --bg-glass: rgba(255, 255, 255, 0.04);
+  --border-glass: rgba(255, 255, 255, 0.08);
+  --accent-gold: #C5A03B;
+  --accent-gold-gradient: linear-gradient(135deg, #C5A03B, #E6C15C, #C5A03B);
+  --accent-royal: #2E5B88;
   --text-primary: #F7FAFC;
-  --text-secondary: #A0AEC0;
+  --text-secondary: #8E9CB2;
 }
 
 * {
@@ -230,4 +230,20 @@ body {
   background: rgba(212, 175, 55, 0.3);
   border-radius: 2px;
   padding: 0 2px;
+}
+
+
+.game-menu-btn {
+  background: transparent;
+  border: 1px solid var(--border-glass);
+  color: white;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s;
+}
+.game-menu-btn:hover {
+  background: var(--bg-glass);
+  border-color: var(--accent-gold);
 }

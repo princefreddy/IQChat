@@ -3,7 +3,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { uploadFile } from '@/lib/api';
 import { useToast } from './ToastProvider';
 
-export default function MessageInput({ onSend, onTyping }: { onSend: (data: any) => void; onTyping?: (isTyping: boolean) => void }) {
+export default function MessageInput({ onSend, onTyping, replyingTo, onCancelReply }: { onSend: (data: any) => void; onTyping?: (isTyping: boolean) => void; replyingTo?: any; onCancelReply?: () => void }) {
   const [content, setContent] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [msgType, setMsgType] = useState('normal');
@@ -25,20 +25,139 @@ export default function MessageInput({ onSend, onTyping }: { onSend: (data: any)
 
   const { showToast } = useToast();
 
-  const handleTyping = useCallback(() => {
+  // Game menu state
+  const [showGameMenu, setShowGameMenu] = useState(false);
+  const [wordMysteryInput, setWordMysteryInput] = useState('');
+  const [showWordInput, setShowWordInput] = useState(false);
+
+  // Voice recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const file = new File([audioBlob], "voice_message.webm", { type: 'audio/webm' });
+        
+        setUploadingFile(true);
+        try {
+          const result = await uploadFile(file);
+          setPendingFile({
+            url: result.url,
+            file_type: 'audio',
+            file_name: 'voice_message.webm',
+          });
+          if (!content.trim()) setContent('🎤 Message vocal');
+        } catch (err: any) {
+          showToast(err.message || "Erreur d'upload vocal", 'error');
+        }
+        setUploadingFile(false);
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingDuration(0);
+      timerRef.current = setInterval(() => setRecordingDuration(prev => prev + 1), 1000);
+    } catch (error) {
+      showToast("Impossible d'accéder au microphone", 'error');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+  };
+
+  const cancelRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.onstop = null; // Prevent upload
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+  };
+
+  const formatDuration = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  const handleTyping = () => {
     if (!onTyping) return;
-    
     if (!isTypingRef.current) {
       isTypingRef.current = true;
       onTyping(true);
     }
-    
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
       isTypingRef.current = false;
       onTyping(false);
-    }, 3000);
-  }, [onTyping]);
+    }, 2000);
+  };
+
+  const startGame = (type: string, extraData: any = {}) => {
+    let contentObj: any = {
+      player_x: null,
+      player_o: null,
+      winner: null,
+      status: "playing"
+    };
+
+    if (type === 'game_tictactoe') {
+      contentObj.board = ["", "", "", "", "", "", "", "", ""];
+      contentObj.current_turn = "x";
+    } else if (type === 'game_connect4') {
+      contentObj.board = Array(42).fill(""); // 7 cols x 6 rows
+      contentObj.current_turn = "x";
+    } else if (type === 'game_rps') {
+      contentObj.player_x_choice = null;
+      contentObj.player_o_choice = null;
+    } else if (type === 'game_word_mystery') {
+      if (!wordMysteryInput.trim()) return;
+      contentObj.target_word = wordMysteryInput.toUpperCase();
+      contentObj.guesses = [];
+    }
+
+    onSend({
+      content: JSON.stringify({ ...contentObj, ...extraData }),
+      type: type,
+      is_anonymous: false,
+      ttl: null,
+      visible_at: null,
+      file_url: null,
+      file_type: null,
+      file_name: null,
+      reply_to_id: replyingTo?.id,
+    });
+    if (onCancelReply) onCancelReply();
+    setShowGameMenu(false);
+    setShowWordInput(false);
+    setWordMysteryInput('');
+  };
+
+  const toggleGameMenu = () => {
+    setShowGameMenu(!showGameMenu);
+    setShowWordInput(false);
+  };
 
   // Clean up typing on unmount
   useEffect(() => {
@@ -89,6 +208,7 @@ export default function MessageInput({ onSend, onTyping }: { onSend: (data: any)
       file_url: pendingFile?.url || null,
       file_type: pendingFile?.file_type || null,
       file_name: pendingFile?.file_name || null,
+      reply_to_id: replyingTo?.id,
     });
     
     setContent('');
@@ -110,6 +230,28 @@ export default function MessageInput({ onSend, onTyping }: { onSend: (data: any)
       borderBottomLeftRadius: '24px',
       borderBottomRightRadius: '24px'
     }}>
+      {/* Replying To Banner */}
+      {replyingTo && (
+        <div className="animate-slide-up" style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          padding: '8px 12px',
+          marginBottom: '12px',
+          background: 'rgba(255, 255, 255, 0.05)',
+          borderLeft: '4px solid var(--accent-gold)',
+          borderRadius: '8px',
+        }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: '12px', color: 'var(--accent-gold)' }}>Réponse à {replyingTo.sender_username || "Anonyme"}</span>
+            <span style={{ fontSize: '13px', color: '#ccc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {replyingTo.file_type === 'audio' ? '🎤 Message vocal' : replyingTo.file_type ? '📎 Pièce jointe' : replyingTo.content}
+            </span>
+          </div>
+          <button onClick={onCancelReply} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#ff4d4f', fontSize: '14px' }}>✕</button>
+        </div>
+      )}
+
       {/* Pending file preview */}
       {pendingFile && (
         <div className="animate-slide-up" style={{
@@ -244,17 +386,110 @@ export default function MessageInput({ onSend, onTyping }: { onSend: (data: any)
           {uploadingFile ? '⏳' : '📎'}
         </button>
 
+        <div style={{ position: 'relative' }}>
+          <button
+            type="button"
+            onClick={toggleGameMenu}
+            style={{
+              background: 'transparent',
+              border: '1px solid var(--accent-gold)',
+              borderRadius: '12px',
+              padding: '10px 14px',
+              cursor: 'pointer',
+              fontSize: '18px',
+              transition: 'all 0.2s',
+            }}
+            title="Catalogue de Jeux"
+          >
+            🎮
+          </button>
+          
+          {showGameMenu && (
+            <div style={{
+              position: 'absolute',
+              bottom: '50px',
+              left: 0,
+              background: 'var(--bg-primary)',
+              border: '1px solid var(--border-glass)',
+              borderRadius: '16px',
+              padding: '12px',
+              width: '240px',
+              zIndex: 100,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px'
+            }}>
+              <div style={{ fontSize: '14px', fontWeight: 'bold', color: 'white', marginBottom: '4px' }}>Catalogue de Mini-Jeux</div>
+              
+              {!showWordInput ? (
+                <>
+                  <button type="button" onClick={() => startGame('game_tictactoe')} className="game-menu-btn">
+                    🎮 Morpion
+                  </button>
+                  <button type="button" onClick={() => startGame('game_connect4')} className="game-menu-btn">
+                    🔴🟡 Puissance 4
+                  </button>
+                  <button type="button" onClick={() => startGame('game_rps')} className="game-menu-btn">
+                    ✂️📄 Pierre-Papier-Ciseaux
+                  </button>
+                  <button type="button" onClick={() => setShowWordInput(true)} className="game-menu-btn">
+                    🧠 Le Mot Mystère
+                  </button>
+                </>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Choisissez un mot à faire deviner :</div>
+                  <input 
+                    type="text" 
+                    value={wordMysteryInput}
+                    onChange={(e) => setWordMysteryInput(e.target.value.toUpperCase())}
+                    placeholder="BATEAU"
+                    style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-glass)', borderRadius: '8px', padding: '6px', color: 'white', outline: 'none' }}
+                  />
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <button type="button" onClick={() => setShowWordInput(false)} style={{ flex: 1, padding: '6px', borderRadius: '8px', border: '1px solid var(--border-glass)', background: 'transparent', color: 'white', cursor: 'pointer' }}>Annuler</button>
+                    <button type="button" onClick={() => startGame('game_word_mystery')} disabled={!wordMysteryInput.trim()} style={{ flex: 1, padding: '6px', borderRadius: '8px', border: 'none', background: 'var(--accent-gold)', color: 'black', fontWeight: 'bold', cursor: 'pointer', opacity: wordMysteryInput.trim() ? 1 : 0.5 }}>Lancer</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         <input
           className="input-royal"
-          placeholder="Écrivez un message... (Ctrl+Enter pour envoyer)"
+          placeholder={isRecording ? `Enregistrement... ${formatDuration(recordingDuration)}` : "Écrivez un message... (Ctrl+Enter pour envoyer)"}
           value={content}
           onChange={(e) => { setContent(e.target.value); handleTyping(); }}
           onKeyDown={handleKeyDown}
           style={{ flex: 1 }}
+          disabled={isRecording}
         />
-        <button type="submit" className="btn-royal" disabled={!content.trim() && !pendingFile}>
-          Envoyer 🚀
-        </button>
+
+        {isRecording ? (
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button type="button" onClick={cancelRecording} style={{ background: 'transparent', border: '1px solid #ff4d4f', borderRadius: '12px', padding: '10px 14px', cursor: 'pointer', fontSize: '18px', color: '#ff4d4f' }} title="Annuler">🗑️</button>
+            <button type="button" onClick={stopRecording} style={{ background: 'var(--accent-gold-gradient)', border: 'none', borderRadius: '12px', padding: '10px 14px', cursor: 'pointer', fontSize: '18px', color: 'black' }} title="Arrêter l'enregistrement">⏹️ Stop</button>
+          </div>
+        ) : (
+          <>
+            {!content.trim() && !pendingFile ? (
+              <button
+                type="button"
+                onClick={startRecording}
+                style={{ background: 'transparent', border: '1px solid var(--accent-gold)', borderRadius: '12px', padding: '10px 14px', cursor: 'pointer', fontSize: '18px', color: 'var(--accent-gold)' }}
+                title="Enregistrer un vocal"
+              >
+                🎤
+              </button>
+            ) : (
+              <button type="submit" className="btn-royal">
+                Envoyer 🚀
+              </button>
+            )}
+          </>
+        )}
       </form>
     </div>
   );

@@ -3,8 +3,8 @@
  * Handles base URL, JWT token injection, and error handling.
  */
 
-const BASE_URL = 'https://iqchatbackend.fly.dev';
-const WS_BASE = 'wss://iqchatbackend.fly.dev';
+const BASE_URL = 'http://localhost:8000';
+const WS_BASE = 'ws://localhost:8000';
 
 /**
  * Get the stored auth data (token + user) from localStorage.

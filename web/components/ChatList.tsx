@@ -124,7 +124,7 @@ export default function ChatList({ user, activeChatId, onSelectChat }: any) {
                      {chat.type === 'private' && otherUser ? (
                         <div style={{ position: 'relative' }}>
                           <img src={otherUser.avatar_url} style={{ width: '32px', height: '32px', borderRadius: '16px' }} />
-                          {otherUser.is_online && <div style={{ position: 'absolute', bottom: 0, right: 0, width: '10px', height: '10px', backgroundColor: '#4ade80', borderRadius: '5px', border: '2px solid #0B0A10' }} />}
+                          {otherUser.is_online && <div style={{ position: 'absolute', bottom: 0, right: 0, width: '10px', height: '10px', backgroundColor: '#4ade80', borderRadius: '5px', border: '2px solid var(--bg-primary)' }} />}
                         </div>
                      ) : (
                         <div style={{ width: '32px', height: '32px', borderRadius: '16px', background: 'var(--accent-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'black', fontWeight: 'bold', fontSize: '14px' }}>
@@ -179,7 +179,7 @@ export default function ChatList({ user, activeChatId, onSelectChat }: any) {
                <div key={u.id} onClick={() => handleCreateChat(u.username, u.full_name)} style={{ padding: '12px 16px', cursor: 'pointer', borderRadius: '12px', background: 'var(--bg-glass)', border: `1px solid transparent`, display: 'flex', alignItems: 'center', gap: '12px', opacity: u.is_banned ? 0.5 : 1 }}>
                   <div style={{ position: 'relative' }}>
                     <img src={u.avatar_url} style={{ width: '40px', height: '40px', borderRadius: '20px' }} />
-                    {u.is_online && <div style={{ position: 'absolute', bottom: 0, right: 0, width: '12px', height: '12px', backgroundColor: '#4ade80', borderRadius: '6px', border: '2px solid #0B0A10' }} />}
+                    {u.is_online && <div style={{ position: 'absolute', bottom: 0, right: 0, width: '12px', height: '12px', backgroundColor: '#4ade80', borderRadius: '6px', border: '2px solid var(--bg-primary)' }} />}
                   </div>
                   <div>
                      <div style={{ color: 'white', fontWeight: 500, textDecoration: u.is_banned ? 'line-through' : 'none' }}>{u.full_name}</div>

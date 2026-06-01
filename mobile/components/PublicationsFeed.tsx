@@ -145,10 +145,10 @@ export default function PublicationsFeed({ user }: any) {
     const parts = item.content.split(urlRegex);
 
     return (
-      <View style={{ padding: 16, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.02)', borderWidth: 1, borderColor: item.is_pinned ? '#D4AF37' : 'rgba(255,255,255,0.1)', marginBottom: 16 }}>
+      <View style={{ padding: 16, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.02)', borderWidth: 1, borderColor: item.is_pinned ? '#C5A03B' : 'rgba(255,255,255,0.1)', marginBottom: 16 }}>
         {item.is_pinned && (
-           <View style={{ position: 'absolute', top: -10, left: 16, backgroundColor: '#0B0A10', paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center' }}>
-             <Text style={{ fontSize: 12, color: '#D4AF37', fontWeight: 'bold' }}>📌 Épinglé</Text>
+           <View style={{ position: 'absolute', top: -10, left: 16, backgroundColor: '#0A1128', paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center' }}>
+             <Text style={{ fontSize: 12, color: '#C5A03B', fontWeight: 'bold' }}>📌 Épinglé</Text>
            </View>
         )}
         {item.repost_of_id && (
@@ -174,7 +174,7 @@ export default function PublicationsFeed({ user }: any) {
         <Text style={{ color: '#FFF', fontSize: 15, lineHeight: 22 }}>
           {parts.map((part: string, i: number) => {
             if (part.match(/^https?:\/\//)) {
-              return <Text key={i} style={{ color: '#D4AF37', textDecorationLine: 'underline' }} onPress={() => Linking.openURL(part)}>{part}</Text>;
+              return <Text key={i} style={{ color: '#C5A03B', textDecorationLine: 'underline' }} onPress={() => Linking.openURL(part)}>{part}</Text>;
             }
             return part;
           })}
@@ -183,7 +183,7 @@ export default function PublicationsFeed({ user }: any) {
         <View style={{ flexDirection: 'row', marginTop: 16, borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.05)', paddingTop: 12, gap: 16, alignItems: 'center' }}>
           <TouchableOpacity onPress={() => handleReact(item.id, true)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <Text style={{ fontSize: 16 }}>👍</Text>
-            <Text style={{ color: item.user_reaction === true ? '#D4AF37' : '#888', fontWeight: 'bold' }}>{item.likes}</Text>
+            <Text style={{ color: item.user_reaction === true ? '#C5A03B' : '#888', fontWeight: 'bold' }}>{item.likes}</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => handleReact(item.id, false)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <Text style={{ fontSize: 16 }}>👎</Text>
@@ -220,7 +220,7 @@ export default function PublicationsFeed({ user }: any) {
   return (
     <View style={{ flex: 1 }}>
        <View style={{ padding: 16, borderBottomWidth: 1, borderColor: '#333' }}>
-         <Text style={{ color: '#D4AF37', fontSize: 20, fontWeight: 'bold', marginBottom: 12 }}>🌍 Fil Public</Text>
+         <Text style={{ color: '#C5A03B', fontSize: 20, fontWeight: 'bold', marginBottom: 12 }}>🌍 Fil Public</Text>
          <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#333' }}>
             <Text style={{ fontSize: 16 }}>🔍</Text>
             <TextInput 
@@ -238,7 +238,7 @@ export default function PublicationsFeed({ user }: any) {
          keyExtractor={item => item.id}
          renderItem={renderItem}
          contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
-         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#D4AF37" />}
+         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#C5A03B" />}
          ListHeaderComponent={
             <View style={{ padding: 16, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: '#333', marginBottom: 24 }}>
               <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -261,7 +261,7 @@ export default function PublicationsFeed({ user }: any) {
                 }}>
                   {charsLeft} caractères restants
                 </Text>
-                <TouchableOpacity onPress={handlePost} disabled={loading || !content.trim() || isOverLimit} style={{ backgroundColor: '#4169E1', paddingVertical: 8, paddingHorizontal: 20, borderRadius: 20, opacity: (content.trim() && !isOverLimit) ? 1 : 0.5 }}>
+                <TouchableOpacity onPress={handlePost} disabled={loading || !content.trim() || isOverLimit} style={{ backgroundColor: '#2E5B88', paddingVertical: 8, paddingHorizontal: 20, borderRadius: 20, opacity: (content.trim() && !isOverLimit) ? 1 : 0.5 }}>
                   <Text style={{ color: '#FFF', fontWeight: 'bold' }}>{loading ? '⏳...' : 'Publier'}</Text>
                 </TouchableOpacity>
               </View>
@@ -273,8 +273,8 @@ export default function PublicationsFeed({ user }: any) {
        {/* Share Modal */}
        <Modal visible={!!shareConfig} transparent animationType="fade">
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-             <View style={{ width: '100%', backgroundColor: '#171520', padding: 24, borderRadius: 16, borderWidth: 1, borderColor: '#333' }}>
-                <Text style={{ color: '#D4AF37', fontSize: 20, fontWeight: 'bold', marginBottom: 16 }}>Partager vers...</Text>
+             <View style={{ width: '100%', backgroundColor: '#111D36', padding: 24, borderRadius: 16, borderWidth: 1, borderColor: '#333' }}>
+                <Text style={{ color: '#C5A03B', fontSize: 20, fontWeight: 'bold', marginBottom: 16 }}>Partager vers...</Text>
                 
                 <ScrollView style={{ maxHeight: 300, marginBottom: 16 }}>
                   {myChats.map(c => (

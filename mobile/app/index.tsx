@@ -73,7 +73,7 @@ export default function AuthScreen() {
   if (loading) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color="#D4AF37" />
+        <ActivityIndicator size="large" color="#C5A03B" />
       </View>
     );
   }
@@ -120,15 +120,15 @@ export default function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0B0A10', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  container: { flex: 1, backgroundColor: '#0A1128', justifyContent: 'center', alignItems: 'center', padding: 24 },
   glassContainer: { width: '100%', padding: 24, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  title: { fontSize: 40, fontWeight: 'bold', color: '#D4AF37', textAlign: 'center', marginBottom: 8 },
+  title: { fontSize: 40, fontWeight: 'bold', color: '#C5A03B', textAlign: 'center', marginBottom: 8 },
   subtitle: { color: '#bbb', textAlign: 'center', marginBottom: 24 },
   toggleRow: { flexDirection: 'row', marginBottom: 16, gap: 8 },
   toggleBtn: { flex: 1, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#333', alignItems: 'center' },
-  activeToggle: { borderColor: '#D4AF37', backgroundColor: 'rgba(212,175,55,0.1)' },
+  activeToggle: { borderColor: '#C5A03B', backgroundColor: 'rgba(212,175,55,0.1)' },
   toggleText: { color: '#FFF', fontWeight: 'bold' },
   input: { backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 12, padding: 16, color: '#FFF', marginBottom: 16, borderWidth: 1, borderColor: '#333' },
-  button: { backgroundColor: '#D4AF37', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
+  button: { backgroundColor: '#C5A03B', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
   buttonText: { color: '#000', fontWeight: 'bold', fontSize: 16 }
 });

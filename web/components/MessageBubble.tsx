@@ -1,10 +1,25 @@
 "use client"
 import { useState, useEffect } from 'react';
-import { getUploadUrl, BASE_URL } from '@/lib/api';
+import { getUploadUrl, BASE_URL, apiFetch } from '@/lib/api';
 
-export default function MessageBubble({ message, isOwn, onReaction }: any) {
+import TicTacToe from './games/TicTacToe';
+import Connect4 from './games/Connect4';
+import RockPaperScissors from './games/RockPaperScissors';
+import WordMystery from './games/WordMystery';
+
+export default function MessageBubble({ message, isOwn, currentUserId, onReaction, onReply }: any) {
   const [isRevealed, setIsRevealed] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(message.ttl || null);
+  
+  const getInitialTimeLeft = () => {
+    if (message.type === 'ephemeral' && message.expires_at) {
+      const expiresAt = new Date(message.expires_at.endsWith('Z') ? message.expires_at : message.expires_at + 'Z').getTime();
+      const diff = Math.floor((expiresAt - Date.now()) / 1000);
+      return diff > 0 ? diff : 0;
+    }
+    return null;
+  };
+  
+  const [timeLeft, setTimeLeft] = useState(getInitialTimeLeft());
   const [expired, setExpired] = useState(false);
   const [linkPreview, setLinkPreview] = useState<any>(null);
 
@@ -25,15 +40,22 @@ export default function MessageBubble({ message, isOwn, onReaction }: any) {
   }, [message.content, isHidden, message.is_anonymous]);
 
   useEffect(() => {
-    if (message.type === 'ephemeral' && timeLeft !== null && !isOwn) {
-      if (timeLeft <= 0) {
-        setExpired(true);
-        return;
-      }
-      const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
-      return () => clearTimeout(timer);
+    if (message.type === 'ephemeral' && message.expires_at && !isOwn) {
+      const checkExpiry = () => {
+        const expiresAt = new Date(message.expires_at.endsWith('Z') ? message.expires_at : message.expires_at + 'Z').getTime();
+        const diff = Math.floor((expiresAt - Date.now()) / 1000);
+        if (diff <= 0) {
+          setExpired(true);
+          setTimeLeft(0);
+        } else {
+          setTimeLeft(diff);
+        }
+      };
+      checkExpiry();
+      const timer = setInterval(checkExpiry, 1000);
+      return () => clearInterval(timer);
     }
-  }, [timeLeft, message, isOwn]);
+  }, [message.expires_at, isOwn]);
 
   const [isTimeLocked, setIsTimeLocked] = useState(false);
   const [lockRemaining, setLockRemaining] = useState('');
@@ -198,17 +220,54 @@ export default function MessageBubble({ message, isOwn, onReaction }: any) {
           )}
           
           <div style={{ filter: isHidden && !isRevealed ? 'blur(6px)' : 'none', transition: 'filter 0.3s', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            {/* Text content */}
-            {message.content && (
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
-                <span style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
-                  {message.content.split(/(https?:\/\/[^\s]+)/g).map((part: string, i: number) => 
-                    part.match(/^https?:\/\//) 
-                    ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-gold)', textDecoration: 'underline' }}>{part}</a> 
-                    : part
-                  )}
-                </span>
+            
+            {/* Reply Block */}
+            {message.reply_to_id && (
+              <div 
+                style={{ 
+                  background: 'rgba(0,0,0,0.2)', 
+                  borderLeft: `4px solid ${isOwn ? 'rgba(255,255,255,0.5)' : 'var(--accent-gold)'}`, 
+                  padding: '6px 10px', 
+                  borderRadius: '6px', 
+                  marginBottom: '6px',
+                  fontSize: '12px',
+                  cursor: 'pointer'
+                }}
+                onClick={() => {
+                  const el = document.getElementById(`msg-${message.reply_to_id}`);
+                  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }}
+              >
+                <div style={{ color: isOwn ? 'rgba(255,255,255,0.7)' : 'var(--accent-gold)', fontWeight: 'bold', marginBottom: '2px' }}>
+                  {message.reply_to_sender || "Anonyme"}
+                </div>
+                <div style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>
+                  {message.reply_to_content || "Message supprimé"}
+                </div>
               </div>
+            )}
+
+            {/* Text content or Game */}
+            {message.type === 'game_tictactoe' ? (
+              <TicTacToe message={message} currentUserId={currentUserId} />
+            ) : message.type === 'game_connect4' ? (
+              <Connect4 message={message} currentUserId={currentUserId} />
+            ) : message.type === 'game_rps' ? (
+              <RockPaperScissors message={message} currentUserId={currentUserId} />
+            ) : message.type === 'game_word_mystery' ? (
+              <WordMystery message={message} currentUserId={currentUserId} />
+            ) : (
+              message.content && (
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
+                  <span style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+                    {message.content.split(/(https?:\/\/[^\s]+)/g).map((part: string, i: number) => 
+                      part.match(/^https?:\/\//) 
+                      ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-gold)', textDecoration: 'underline' }}>{part}</a> 
+                      : part
+                    )}
+                  </span>
+                </div>
+              )
             )}
 
             {/* File attachment */}
@@ -263,10 +322,10 @@ export default function MessageBubble({ message, isOwn, onReaction }: any) {
         )}
       </div>
 
-      {/* Available Reactions to click if none exist */}
-      {!isOwn && !message.reaction && (
-        <div style={{ display: 'flex', gap: '4px', marginTop: '4px', opacity: 0.3, justifyContent: 'flex-start', width: '100%' }}>
-           {['👍', '❤️', '😂', '😮', '🔥'].map(emoji => (
+      {/* Actions Block (Reactions + Reply) */}
+      {!isOwn && (
+        <div style={{ display: 'flex', gap: '4px', marginTop: '4px', opacity: 0.5, justifyContent: 'flex-start', width: '100%', alignItems: 'center' }}>
+           {!message.reaction && ['👍', '❤️', '😂', '😮', '🔥'].map(emoji => (
              <span 
                key={emoji}
                style={{ cursor: 'pointer', fontSize: '12px', transition: 'transform 0.2s', display: 'inline-block' }}
@@ -280,6 +339,15 @@ export default function MessageBubble({ message, isOwn, onReaction }: any) {
                {emoji}
              </span>
            ))}
+           {onReply && (
+             <button 
+               onClick={() => onReply(message)}
+               style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '14px', marginLeft: '8px', transition: 'transform 0.2s' }}
+               title="Répondre"
+             >
+               ↩️
+             </button>
+           )}
         </div>
       )}
     </div>

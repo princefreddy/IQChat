@@ -53,11 +53,15 @@ class Message(Base):
     is_read = Column(Boolean, default=False)
     visible_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    expires_at = Column(DateTime, nullable=True) # Used for ephemeral exact expiration
     
     # File attachment fields
     file_url = Column(String, nullable=True)
     file_type = Column(String, nullable=True)  # "image", "video", "audio", "file"
     file_name = Column(String, nullable=True)   # Original filename
+    
+    # Reply feature
+    reply_to_id = Column(String, ForeignKey("messages.id"), nullable=True)
     
     chat = relationship("Chat", back_populates="messages")
 

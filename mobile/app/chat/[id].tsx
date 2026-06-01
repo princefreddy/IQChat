@@ -11,6 +11,8 @@ export default function ChatScreen() {
   const [user, setUser] = useState<any>(null);
   const [chatInfo, setChatInfo] = useState<any>(null);
   const [messages, setMessages] = useState<any[]>([]);
+  const [replyingTo, setReplyingTo] = useState<any>(null);
+  const [viewImage, setViewImage] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -233,12 +235,19 @@ export default function ChatScreen() {
       <Stack.Screen 
         options={{ 
           title: headerTitle,
-          headerStyle: { backgroundColor: '#171520' },
-          headerTintColor: '#D4AF37',
+          headerStyle: { backgroundColor: '#111D36' },
+          headerTintColor: '#C5A03B',
           headerTitle: () => (
-             <View>
-               <Text style={{ color: '#D4AF37', fontSize: 18, fontWeight: 'bold' }}>{headerTitle}</Text>
-               <Text style={{ color: '#888', fontSize: 12 }}>{onlineStatusText}</Text>
+             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+               {(isPrivate && otherMember?.avatar_url) ? (
+                 <TouchableOpacity onPress={() => setViewImage(otherMember.avatar_url)}>
+                   <Image source={{ uri: otherMember.avatar_url }} style={{ width: 36, height: 36, borderRadius: 18 }} />
+                 </TouchableOpacity>
+               ) : null}
+               <View>
+                 <Text style={{ color: '#C5A03B', fontSize: 18, fontWeight: 'bold' }}>{headerTitle}</Text>
+                 <Text style={{ color: '#888', fontSize: 12 }}>{onlineStatusText}</Text>
+               </View>
              </View>
           ),
           headerRight: () => (
@@ -252,8 +261,8 @@ export default function ChatScreen() {
                  </TouchableOpacity>
                )}
                {!isPrivate && amIAdmin && (
-                 <TouchableOpacity onPress={() => setShowAddMember(true)} style={{ padding: 6, borderWidth: 1, borderColor: '#D4AF37', borderRadius: 8 }}>
-                   <Text style={{ color: '#D4AF37', fontSize: 12 }}>+ Membres</Text>
+                 <TouchableOpacity onPress={() => setShowAddMember(true)} style={{ padding: 6, borderWidth: 1, borderColor: '#C5A03B', borderRadius: 8 }}>
+                   <Text style={{ color: '#C5A03B', fontSize: 12 }}>+ Membres</Text>
                  </TouchableOpacity>
                )}
              </View>
@@ -264,7 +273,15 @@ export default function ChatScreen() {
         ref={flatListRef}
         data={messages}
         keyExtractor={item => item.id}
-        renderItem={({ item }) => <MessageBubble message={item} isOwn={user && item.sender_id === user.id} onReaction={handleReaction} />}
+        renderItem={({ item }) => (
+          <MessageBubble 
+            message={item} 
+            isOwn={item.sender_id === user.id} 
+            currentUserId={user.id}
+            onReaction={(msgId: string, emoji: string) => handleReaction(msgId, emoji)}
+            onReply={() => setReplyingTo(item)}
+          />
+        )}
         contentContainerStyle={{ padding: 16 }}
         onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
         ListFooterComponent={
@@ -280,7 +297,7 @@ export default function ChatScreen() {
                 <View style={[styles.dot, { animationDelay: '150ms' }]} />
                 <View style={[styles.dot, { animationDelay: '300ms' }]} />
               </Animated.View>
-              <Text style={{ fontSize: 12, color: '#D4AF37', fontStyle: 'italic', opacity: 0.8 }}>
+              <Text style={{ fontSize: 12, color: '#C5A03B', fontStyle: 'italic', opacity: 0.8 }}>
                 {typingUser} écrit...
               </Text>
             </View>
@@ -291,9 +308,9 @@ export default function ChatScreen() {
       {showAddMember && (
         <Modal transparent animationType="slide" visible={showAddMember}>
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', padding: 24 }}>
-            <View style={{ backgroundColor: '#171520', padding: 24, borderRadius: 24, borderWidth: 1, borderColor: '#333' }}>
+            <View style={{ backgroundColor: '#111D36', padding: 24, borderRadius: 24, borderWidth: 1, borderColor: '#333' }}>
               
-              <Text style={{ color: '#D4AF37', fontSize: 18, fontWeight: 'bold', marginBottom: 12 }}>Membres Actuels</Text>
+              <Text style={{ color: '#C5A03B', fontSize: 18, fontWeight: 'bold', marginBottom: 12 }}>Membres Actuels</Text>
               <ScrollView style={{ maxHeight: 150, marginBottom: 16 }}>
                  {chatInfo?.members?.map((m: any) => (
                     <View key={m.user_id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 8, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 8, marginBottom: 4 }}>
@@ -307,7 +324,7 @@ export default function ChatScreen() {
                  ))}
               </ScrollView>
 
-              <Text style={{ color: '#D4AF37', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>Ajouter des contacts</Text>
+              <Text style={{ color: '#C5A03B', fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>Ajouter des contacts</Text>
               {contacts.length === 0 ? (
                  <Text style={{ color: '#888', marginBottom: 16 }}>Vous n'avez aucun contact... Échangez d'abord en privé !</Text>
               ) : (
@@ -319,7 +336,7 @@ export default function ChatScreen() {
                          <TouchableOpacity
                            key={c.id}
                            onPress={() => setSelectedUsernames(prev => isSelected ? prev.filter(u => u !== c.username) : [...prev, c.username])}
-                           style={{ padding: 12, borderRadius: 12, backgroundColor: isSelected ? 'rgba(212,175,55,0.2)' : 'rgba(0,0,0,0.3)', borderWidth: 1, borderColor: isSelected ? '#D4AF37' : '#333', flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}
+                           style={{ padding: 12, borderRadius: 12, backgroundColor: isSelected ? 'rgba(212,175,55,0.2)' : 'rgba(0,0,0,0.3)', borderWidth: 1, borderColor: isSelected ? '#C5A03B' : '#333', flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}
                          >
                            <Text style={{ color: '#FFF', fontSize: 16 }}>{c.full_name || c.username}</Text>
                          </TouchableOpacity>
@@ -332,7 +349,7 @@ export default function ChatScreen() {
                    <Text style={{ color: '#FFF' }}>Annuler</Text>
                  </TouchableOpacity>
                  {contacts.length > 0 && (
-                   <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: '#D4AF37', borderRadius: 12, alignItems: 'center', opacity: selectedUsernames.length === 0 ? 0.5 : 1 }} onPress={handleAddMembers} disabled={selectedUsernames.length === 0}>
+                   <TouchableOpacity style={{ flex: 1, padding: 12, backgroundColor: '#C5A03B', borderRadius: 12, alignItems: 'center', opacity: selectedUsernames.length === 0 ? 0.5 : 1 }} onPress={handleAddMembers} disabled={selectedUsernames.length === 0}>
                      <Text style={{ color: '#000', fontWeight: 'bold' }}>Ajouter</Text>
                    </TouchableOpacity>
                  )}
@@ -349,22 +366,31 @@ export default function ChatScreen() {
               <Text style={{ color: '#888' }}>⏳ En attente de l'acceptation de l'utilisateur...</Text>
             ) : (
               <View style={{ alignItems: 'center', gap: 12 }}>
-                <Text style={{ color: '#D4AF37' }}>🤝 Ce contact souhaite discuter avec vous.</Text>
-                <TouchableOpacity onPress={handleAccept} style={{ backgroundColor: '#D4AF37', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 }}>
+                <Text style={{ color: '#C5A03B' }}>🤝 Ce contact souhaite discuter avec vous.</Text>
+                <TouchableOpacity onPress={handleAccept} style={{ backgroundColor: '#C5A03B', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 }}>
                   <Text style={{ color: '#000', fontWeight: 'bold' }}>Accepter pour discuter</Text>
                 </TouchableOpacity>
               </View>
             )}
           </View>
         ) : (
-          <MessageInput onSend={handleSend} onTyping={sendTypingEvent} />
+          <MessageInput onSend={handleSend} onTyping={sendTypingEvent} replyingTo={replyingTo} onCancelReply={() => setReplyingTo(null)} />
         )
+      )}
+
+      {/* Full Screen Image Viewer */}
+      {viewImage && (
+        <Modal transparent animationType="fade" visible={!!viewImage} onRequestClose={() => setViewImage(null)}>
+          <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1} onPress={() => setViewImage(null)}>
+            <Image source={{ uri: viewImage }} style={{ width: '100%', height: '80%', resizeMode: 'contain' }} />
+          </TouchableOpacity>
+        </Modal>
       )}
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0B0A10' },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#D4AF37' },
+  container: { flex: 1, backgroundColor: '#0A1128' },
+  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#C5A03B' },
 });

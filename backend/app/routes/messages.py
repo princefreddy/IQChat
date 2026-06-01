@@ -12,7 +12,7 @@ from typing import Optional
 router = APIRouter()
 
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads")
-ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".mp4", ".mp3", ".pdf", ".doc", ".docx"}
+ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".mp4", ".mp3", ".webm", ".m4a", ".wav", ".ogg", ".pdf", ".doc", ".docx"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
@@ -33,18 +33,34 @@ async def upload_file(
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(status_code=400, detail="Fichier trop volumineux (max 10 MB)")
     
-    # Save file with unique name
+    # Save file
     file_id = str(uuid.uuid4())
     filename = f"{file_id}{ext}"
-    filepath = os.path.join(UPLOAD_DIR, filename)
     
-    async with aiofiles.open(filepath, "wb") as f:
-        await f.write(content)
+    from ..services.storage import is_s3_configured, upload_file_to_s3
+    from fastapi.concurrency import run_in_threadpool
+    import mimetypes
+    
+    if is_s3_configured():
+        content_type, _ = mimetypes.guess_type(file.filename or "")
+        if not content_type:
+            content_type = "application/octet-stream"
+        try:
+            # Upload to S3/R2 asynchronously
+            file_url = await run_in_threadpool(upload_file_to_s3, content, filename, content_type)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Erreur d'envoi du fichier sur le stockage cloud: {str(e)}")
+    else:
+        # Fallback to local storage
+        filepath = os.path.join(UPLOAD_DIR, filename)
+        async with aiofiles.open(filepath, "wb") as f:
+            await f.write(content)
+        file_url = f"/uploads/{filename}"
     
     # Determine file type category
     image_exts = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
     video_exts = {".mp4"}
-    audio_exts = {".mp3"}
+    audio_exts = {".mp3", ".webm", ".m4a", ".wav", ".ogg"}
     
     if ext in image_exts:
         file_type = "image"
@@ -57,7 +73,7 @@ async def upload_file(
     
     return {
         "success": True,
-        "url": f"/uploads/{filename}",
+        "url": file_url,
         "file_type": file_type,
         "original_name": file.filename,
     }
@@ -72,6 +88,11 @@ async def send_message(message: schemas.MessageCreate, current_user: models.User
     if chat.type == 'private':
         db.query(models.ChatMember).filter(models.ChatMember.chat_id == message.chat_id).update({"is_deleted": False}, synchronize_session=False)
 
+    import datetime
+    expires_at = None
+    if message.type == 'ephemeral' and message.ttl:
+        expires_at = datetime.datetime.utcnow() + datetime.timedelta(seconds=message.ttl)
+
     new_msg = models.Message(
         id=str(uuid.uuid4()),
         chat_id=message.chat_id,
@@ -80,11 +101,13 @@ async def send_message(message: schemas.MessageCreate, current_user: models.User
         type=message.type,
         is_anonymous=message.is_anonymous,
         ttl=message.ttl,
+        expires_at=expires_at,
         reaction=None,
         visible_at=message.visible_at,
         file_url=message.file_url,
         file_type=message.file_type,
         file_name=message.file_name,
+        reply_to_id=message.reply_to_id,
     )
     db.add(new_msg)
     db.commit()
@@ -92,6 +115,22 @@ async def send_message(message: schemas.MessageCreate, current_user: models.User
 
     sender_username = current_user.username if not message.is_anonymous else None
     sender_avatar = current_user.avatar_url if not message.is_anonymous else None
+
+    reply_to_content = None
+    reply_to_sender = None
+    if new_msg.reply_to_id:
+        reply_msg = db.query(models.Message).filter(models.Message.id == new_msg.reply_to_id).first()
+        if reply_msg:
+            reply_to_content = reply_msg.content
+            if reply_msg.file_type == 'audio':
+                reply_to_content = '🎤 Message vocal'
+            elif reply_msg.file_type:
+                reply_to_content = '📎 Pièce jointe'
+                
+            if reply_msg.sender_id and not reply_msg.is_anonymous:
+                reply_user = db.query(models.User).filter(models.User.id == reply_msg.sender_id).first()
+                if reply_user:
+                    reply_to_sender = reply_user.username
 
     msg_out = schemas.MessageOut(
         id=new_msg.id,
@@ -107,12 +146,64 @@ async def send_message(message: schemas.MessageCreate, current_user: models.User
         is_read=new_msg.is_read,
         visible_at=new_msg.visible_at,
         created_at=new_msg.created_at,
+        expires_at=new_msg.expires_at,
         file_url=new_msg.file_url,
         file_type=new_msg.file_type,
         file_name=new_msg.file_name,
+        reply_to_id=new_msg.reply_to_id,
+        reply_to_content=reply_to_content,
+        reply_to_sender=reply_to_sender,
     )
     
     await manager.broadcast_to_chat(message.chat_id, msg_out.model_dump(mode='json'))
+    return msg_out
+
+
+@router.patch("/{message_id}/content", response_model=schemas.MessageOut)
+async def update_message_content(message_id: str, update_data: schemas.MessageUpdateContent, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    msg = db.query(models.Message).filter(models.Message.id == message_id).first()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+        
+    # Optional: could check if user is a member of msg.chat_id
+    msg.content = update_data.content
+    db.commit()
+    db.refresh(msg)
+    
+    sender_username = None
+    sender_avatar = None
+    if msg.sender_id and not msg.is_anonymous:
+        user = db.query(models.User).filter(models.User.id == msg.sender_id).first()
+        if user:
+            sender_username = user.username
+            sender_avatar = user.avatar_url
+            
+    reply_to_content = None
+    reply_to_sender = None
+    if msg.reply_to_id:
+        reply_msg = db.query(models.Message).filter(models.Message.id == msg.reply_to_id).first()
+        if reply_msg:
+            reply_to_content = reply_msg.content
+            if reply_msg.file_type == 'audio':
+                reply_to_content = '🎤 Message vocal'
+            elif reply_msg.file_type:
+                reply_to_content = '📎 Pièce jointe'
+            if reply_msg.sender_id and not reply_msg.is_anonymous:
+                reply_user = db.query(models.User).filter(models.User.id == reply_msg.sender_id).first()
+                if reply_user:
+                    reply_to_sender = reply_user.username
+            
+    msg_out = schemas.MessageOut(
+        id=msg.id, chat_id=msg.chat_id, sender_id=msg.sender_id if not msg.is_anonymous else None,
+        sender_username=sender_username, sender_avatar=sender_avatar,
+        content=msg.content, type=msg.type, is_anonymous=msg.is_anonymous,
+        ttl=msg.ttl, reaction=msg.reaction, is_read=msg.is_read,
+        visible_at=msg.visible_at, created_at=msg.created_at, expires_at=msg.expires_at,
+        file_url=msg.file_url, file_type=msg.file_type, file_name=msg.file_name,
+        reply_to_id=msg.reply_to_id, reply_to_content=reply_to_content, reply_to_sender=reply_to_sender,
+    )
+    
+    await manager.broadcast_to_chat(msg.chat_id, msg_out.model_dump(mode='json'))
     return msg_out
 
 
@@ -134,13 +225,30 @@ async def add_reaction(message_id: str, reaction: schemas.ReactionUpdate, curren
             sender_username = user.username
             sender_avatar = user.avatar_url
             
+    reply_to_content = None
+    reply_to_sender = None
+    if msg.reply_to_id:
+        reply_msg = db.query(models.Message).filter(models.Message.id == msg.reply_to_id).first()
+        if reply_msg:
+            reply_to_content = reply_msg.content
+            if reply_msg.file_type == 'audio':
+                reply_to_content = '🎤 Message vocal'
+            elif reply_msg.file_type:
+                reply_to_content = '📎 Pièce jointe'
+                
+            if reply_msg.sender_id and not reply_msg.is_anonymous:
+                reply_user = db.query(models.User).filter(models.User.id == reply_msg.sender_id).first()
+                if reply_user:
+                    reply_to_sender = reply_user.username
+            
     msg_out = schemas.MessageOut(
         id=msg.id, chat_id=msg.chat_id, sender_id=msg.sender_id if not msg.is_anonymous else None,
         sender_username=sender_username, sender_avatar=sender_avatar,
         content=msg.content, type=msg.type, is_anonymous=msg.is_anonymous,
         ttl=msg.ttl, reaction=msg.reaction, is_read=msg.is_read,
-        visible_at=msg.visible_at, created_at=msg.created_at,
+        visible_at=msg.visible_at, created_at=msg.created_at, expires_at=msg.expires_at,
         file_url=msg.file_url, file_type=msg.file_type, file_name=msg.file_name,
+        reply_to_id=msg.reply_to_id, reply_to_content=reply_to_content, reply_to_sender=reply_to_sender,
     )
     
     await manager.broadcast_to_chat(msg.chat_id, msg_out.model_dump(mode='json'))

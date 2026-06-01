@@ -10,9 +10,14 @@ export default function ChatWindow({ user, chatId }: any) {
   const [chatInfo, setChatInfo] = useState<any>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [viewImage, setViewImage] = useState<string | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const { showToast } = useToast();
+
+  const [replyingTo, setReplyingTo] = useState<any>(null);
 
   // Typing indicator state
   const [typingUser, setTypingUser] = useState<string | null>(null);
@@ -24,7 +29,6 @@ export default function ChatWindow({ user, chatId }: any) {
   const [searchResults, setSearchResults] = useState<any[]>([]);
 
   // Add member modal state
-  const [showAddMember, setShowAddMember] = useState(false);
   const [contacts, setContacts] = useState<any[]>([]);
   const [selectedUsernames, setSelectedUsernames] = useState<string[]>([]);
 
@@ -52,6 +56,7 @@ export default function ChatWindow({ user, chatId }: any) {
   };
 
   const handleLeaveChat = async () => {
+    const isPrivate = chatInfo?.type === 'private';
     if (!window.confirm(isPrivate ? "Voulez-vous masquer cette conversation ?" : "Voulez-vous quitter ce groupe ?")) return;
     try {
       const res = await apiFetch(`/chats/${chatId}/leave`, { method: 'DELETE' });
@@ -188,6 +193,7 @@ export default function ChatWindow({ user, chatId }: any) {
         method: 'POST',
         body: JSON.stringify({ chat_id: chatId, ...msgData })
       });
+      setReplyingTo(null);
     } catch {}
   };
 
@@ -254,9 +260,18 @@ export default function ChatWindow({ user, chatId }: any) {
         alignItems: 'center',
         gap: '12px'
       }}>
-        <div style={{ width: '40px', height: '40px', borderRadius: '20px', background: 'var(--accent-gold-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: 'black' }}>
-          {isPrivate ? (otherMember ? (otherMember.full_name || otherMember.username).charAt(0).toUpperCase() : 'C') : (chatInfo.name ? chatInfo.name.charAt(0).toUpperCase() : 'G')}
-        </div>
+        {(isPrivate && otherMember?.avatar_url) ? (
+          <img 
+             src={otherMember.avatar_url} 
+             alt="Avatar" 
+             style={{ width: '40px', height: '40px', borderRadius: '20px', cursor: 'pointer', objectFit: 'cover' }}
+             onClick={() => setViewImage(otherMember.avatar_url)}
+          />
+        ) : (
+          <div style={{ width: '40px', height: '40px', borderRadius: '20px', background: 'var(--accent-gold-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: 'black' }}>
+            {isPrivate ? (otherMember ? (otherMember.full_name || otherMember.username).charAt(0).toUpperCase() : 'C') : (chatInfo.name ? chatInfo.name.charAt(0).toUpperCase() : 'G')}
+          </div>
+        )}
         <div>
           <h3 style={{ margin: 0, color: 'var(--accent-gold)' }}>
              {isPrivate ? (otherMember ? (otherMember.full_name || otherMember.username) : 'Chat') : `${chatInfo.name || 'Group Chat'} ${amIAdmin ? '👑' : ''}`}
@@ -345,7 +360,7 @@ export default function ChatWindow({ user, chatId }: any) {
 
       {showAddMember && (
          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-           <div style={{ background: '#171520', padding: '24px', borderRadius: '16px', border: '1px solid var(--border-glass)', width: '300px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+           <div style={{ background: 'var(--bg-secondary)', padding: '24px', borderRadius: '16px', border: '1px solid var(--border-glass)', width: '300px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
               
               <h3 style={{ margin: 0, color: 'var(--accent-gold)' }}>Membres Actuels</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '150px', overflowY: 'auto', marginBottom: '8px' }}>
@@ -401,7 +416,14 @@ export default function ChatWindow({ user, chatId }: any) {
            </div>
          ) : (
            messages.map((msg, i) => (
-             <MessageBubble key={msg.id || i} message={msg} isOwn={msg.sender_id === user.id} onReaction={handleReaction} />
+             <MessageBubble 
+              key={msg.id} 
+              message={msg} 
+              isOwn={msg.sender_id === user.id}
+              currentUserId={user.id}
+              onReaction={(emoji: string) => handleReaction(msg.id, emoji)}
+              onReply={() => setReplyingTo(msg)}
+            />
            ))
          )}
          {/* Typing indicator */}
@@ -426,7 +448,22 @@ export default function ChatWindow({ user, chatId }: any) {
           )}
         </div>
       ) : (
-        <MessageInput onSend={handleSend} onTyping={sendTypingEvent} />
+        <MessageInput 
+          onSend={handleSend} 
+          onTyping={sendTypingEvent} 
+          replyingTo={replyingTo}
+          onCancelReply={() => setReplyingTo(null)}
+        />
+      )}
+
+      {/* Full Screen Image Viewer */}
+      {viewImage && (
+        <div 
+          onClick={() => setViewImage(null)}
+          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+        >
+          <img src={viewImage} alt="Profile Large" style={{ maxWidth: '90%', maxHeight: '90%', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 0 20px rgba(0,0,0,0.5)' }} />
+        </div>
       )}
     </div>
   );
