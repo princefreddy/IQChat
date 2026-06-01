@@ -61,13 +61,19 @@ export default function ChatPage() {
 
   if (!user) return null;
 
+  const isShowSidebar = !activeChatId && activeView === 'chats';
+  const isShowChat = !!activeChatId || activeView === 'feed';
+
   return (
     <ToastProvider>
-      <div className="app-container">
+      <div className={`app-container ${isShowSidebar ? 'show-sidebar' : 'show-chat'}`}>
         <div className="sidebar glass-panel animate-slide-up" style={{ display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', padding: '12px', gap: '8px', borderBottom: '1px solid var(--border-glass)' }}>
             <button 
-              onClick={() => setActiveView('chats')}
+              onClick={() => {
+                setActiveChatId(null);
+                setActiveView('chats');
+              }}
               style={{ flex: 1, padding: '8px', background: activeView === 'chats' ? 'var(--accent-royal)' : 'transparent', color: '#FFF', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
             >
               Discussions
@@ -91,6 +97,38 @@ export default function ChatPage() {
           </div>
         </div>
         <div className="chat-main glass-panel animate-slide-up" style={{ animationDelay: '0.1s' }}>
+          {/* Mobile Only Header Bar for Back Navigation */}
+          {(activeChatId || activeView === 'feed') && (
+            <div 
+              style={{ 
+                padding: '8px 16px', 
+                borderBottom: '1px solid var(--border-glass)', 
+                background: 'rgba(0,0,0,0.15)',
+                display: 'none', // Overridden by media query in globals.css
+                alignItems: 'center'
+              }} 
+              className="mobile-back-btn"
+            >
+              <button 
+                onClick={() => {
+                  setActiveChatId(null);
+                  setActiveView('chats');
+                }} 
+                style={{
+                  background: 'transparent',
+                  border: '1px solid var(--border-glass)',
+                  color: 'var(--accent-gold)',
+                  padding: '6px 14px',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '14px'
+                }}
+              >
+                ← Retour aux Discussions
+              </button>
+            </div>
+          )}
           {activeView === 'feed' ? (
             <PublicationsFeed user={user} />
           ) : activeChatId ? (
