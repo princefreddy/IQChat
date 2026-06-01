@@ -3,8 +3,8 @@
  * Handles base URL, JWT token injection, and error handling.
  */
 
-const BASE_URL = 'http://localhost:8000';
-const WS_BASE = 'ws://localhost:8000';
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const WS_BASE = BASE_URL.replace(/^http/, 'ws');
 
 /**
  * Get the stored auth data (token + user) from localStorage.
