@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { View, FlatList, StyleSheet, Text, TouchableOpacity, KeyboardAvoidingView, Platform, Modal, ScrollView, Alert, Animated } from 'react-native';
+import { View, FlatList, StyleSheet, Text, TouchableOpacity, KeyboardAvoidingView, Platform, Modal, ScrollView, Alert, Animated, Image } from 'react-native';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import MessageBubble from '../../components/MessageBubble';
 import MessageInput from '../../components/MessageInput';
