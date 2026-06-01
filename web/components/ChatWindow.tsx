@@ -449,7 +449,7 @@ export default function ChatWindow({ user, chatId }: any) {
               message={msg} 
               isOwn={msg.sender_id === user.id}
               currentUserId={user.id}
-              onReaction={(emoji: string) => handleReaction(msg.id, emoji)}
+              onReaction={handleReaction}
               onReply={() => setReplyingTo(msg)}
             />
            ))
