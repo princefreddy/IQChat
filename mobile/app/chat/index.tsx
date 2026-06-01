@@ -76,7 +76,7 @@ export default function ChatListScreen() {
             fetchDirectory();
           }
         });
-      }, 3000);
+      }, 15000);
       return () => clearInterval(interval);
     }, [viewMode])
   );

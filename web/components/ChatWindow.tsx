@@ -153,7 +153,7 @@ export default function ChatWindow({ user, chatId }: any) {
       });
     };
 
-    // Poll chat info every 3s to detect status changes (invite accepted, members updated, etc.)
+    // Poll chat info every 30s to detect status changes (invite accepted, members updated, etc.)
     const chatPollInterval = setInterval(async () => {
       try {
         const res = await fetch(`${BASE_URL}/chats/${chatId}?user_id=${user.id}`);
@@ -162,7 +162,7 @@ export default function ChatWindow({ user, chatId }: any) {
           setChatInfo(data);
         }
       } catch {}
-    }, 3000);
+    }, 30000);
 
     return () => {
       ws.close();

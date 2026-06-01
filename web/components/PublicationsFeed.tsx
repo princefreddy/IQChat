@@ -27,7 +27,7 @@ export default function PublicationsFeed({ user }: any) {
 
   useEffect(() => {
     fetchPublications();
-    const interval = setInterval(fetchPublications, 3000);
+    const interval = setInterval(fetchPublications, 20000);
     return () => clearInterval(interval);
   }, [user]);
 

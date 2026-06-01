@@ -40,7 +40,7 @@ export default function ChatList({ user, activeChatId, onSelectChat }: any) {
     const interval = setInterval(() => {
       fetchChats();
       fetchDirectory();
-    }, 3000);
+    }, 15000);
     return () => clearInterval(interval);
   }, [currentUser]);
 
