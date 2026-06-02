@@ -5,6 +5,12 @@ from .db.database import engine, Base
 from .routes import auth, users, chats, messages, utils, publications
 from .services.websockets import websocket_endpoint
 import os
+import mimetypes
+
+# Register explicit mime types to prevent iOS AVFoundation player failures
+mimetypes.add_type('audio/mp4', '.m4a')
+mimetypes.add_type('audio/mpeg', '.mp3')
+mimetypes.add_type('video/mp4', '.mp4')
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
