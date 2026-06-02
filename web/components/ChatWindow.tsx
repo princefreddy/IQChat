@@ -6,10 +6,13 @@ import { MessageSkeleton } from './SkeletonLoader';
 import { useToast } from './ToastProvider';
 import { apiFetch, getChatWsUrl, BASE_URL } from '@/lib/api';
 
+const chatCache: Record<string, { chatInfo: any; messages: any[] }> = {};
+
 export default function ChatWindow({ user, chatId }: any) {
-  const [chatInfo, setChatInfo] = useState<any>(null);
-  const [messages, setMessages] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cached = chatCache[chatId];
+  const [chatInfo, setChatInfo] = useState<any>(cached ? cached.chatInfo : null);
+  const [messages, setMessages] = useState<any[]>(cached ? cached.messages : []);
+  const [loading, setLoading] = useState(!cached);
   const [showAddMember, setShowAddMember] = useState(false);
   const [viewImage, setViewImage] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(true);
@@ -103,14 +106,33 @@ export default function ChatWindow({ user, chatId }: any) {
   }, [handleSearch]);
 
   useEffect(() => {
-    setLoading(true);
+    const cached = chatCache[chatId];
+    if (cached) {
+      setChatInfo(cached.chatInfo);
+      setMessages(cached.messages);
+      setLoading(false);
+    } else {
+      setLoading(true);
+      setChatInfo(null);
+      setMessages([]);
+    }
+
     const fetchChat = async () => {
       try {
         const res = await fetch(`${BASE_URL}/chats/${chatId}?user_id=${user.id}`);
         if (res.ok) {
           const data = await res.json();
+          const prevCached = chatCache[chatId];
+          const hasChanged = !prevCached || 
+                             prevCached.messages.length !== data.messages.length ||
+                             prevCached.messages[prevCached.messages.length - 1]?.id !== data.messages[data.messages.length - 1]?.id ||
+                             prevCached.messages.some((msg, idx) => msg.is_read !== data.messages[idx]?.is_read || msg.reaction !== data.messages[idx]?.reaction);
+          
+          chatCache[chatId] = { chatInfo: data, messages: data.messages };
           setChatInfo(data);
-          setMessages(data.messages);
+          if (hasChanged) {
+            setMessages(data.messages);
+          }
         }
       } catch {}
       setLoading(false);
@@ -148,33 +170,46 @@ export default function ChatWindow({ user, chatId }: any) {
       }
       
       if (data.event === 'read') {
-        setMessages(prev => prev.map(m => 
-          m.sender_id === user.id ? { ...m, is_read: true } : m
-        ));
+        setMessages(prev => {
+          const newMsgs = prev.map(m => 
+            m.sender_id === user.id ? { ...m, is_read: true } : m
+          );
+          if (chatCache[chatId]) {
+            chatCache[chatId].messages = newMsgs;
+          }
+          return newMsgs;
+        });
         return;
       }
       
       // Regular message
       setMessages((prev) => {
-        // 1. Try to match by real database ID
-        const idx = prev.findIndex(m => m.id === data.id);
-        if (idx !== -1) {
-          const updated = [...prev];
-          updated[idx] = data;
-          return updated;
-        }
+        const newMsgs = (() => {
+          // 1. Try to match by real database ID
+          const idx = prev.findIndex(m => m.id === data.id);
+          if (idx !== -1) {
+            const updated = [...prev];
+            updated[idx] = data;
+            return updated;
+          }
 
-        // 2. Try to match by optimistic sending status and content/sender
-        if (data.sender_id === user.id) {
-           const optIdx = prev.findIndex(m => m.status === 'sending' && m.content === data.content);
-           if (optIdx !== -1) {
-              const updated = [...prev];
-              updated[optIdx] = data; // replace temp with server response
-              return updated;
-           }
+          // 2. Try to match by optimistic sending status and content/sender
+          if (data.sender_id === user.id) {
+             const optIdx = prev.findIndex(m => m.status === 'sending' && m.content === data.content);
+             if (optIdx !== -1) {
+                const updated = [...prev];
+                updated[optIdx] = data; // replace temp with server response
+                return updated;
+             }
+          }
+          
+          return [...prev, data];
+        })();
+
+        if (chatCache[chatId]) {
+          chatCache[chatId].messages = newMsgs;
         }
-        
-        return [...prev, data];
+        return newMsgs;
       });
     };
 
@@ -184,6 +219,7 @@ export default function ChatWindow({ user, chatId }: any) {
         const res = await apiFetch(`/chats/${chatId}?user_id=${user.id}`);
         if (res.ok) {
           const data = await res.json();
+          chatCache[chatId] = { chatInfo: data, messages: data.messages };
           setChatInfo(data);
         }
       } catch {}
@@ -237,7 +273,13 @@ export default function ChatWindow({ user, chatId }: any) {
       status: 'sending'
     };
 
-    setMessages(prev => [...prev, tempMessage]);
+    setMessages(prev => {
+      const newMsgs = [...prev, tempMessage];
+      if (chatCache[chatId]) {
+        chatCache[chatId].messages = newMsgs;
+      }
+      return newMsgs;
+    });
     setReplyingTo(null);
 
     try {
@@ -246,10 +288,22 @@ export default function ChatWindow({ user, chatId }: any) {
         body: JSON.stringify({ chat_id: chatId, ...msgData })
       });
       if (!res.ok) {
-        setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'error' } : m));
+        setMessages(prev => {
+          const newMsgs = prev.map(m => m.id === tempId ? { ...m, status: 'error' } : m);
+          if (chatCache[chatId]) {
+            chatCache[chatId].messages = newMsgs;
+          }
+          return newMsgs;
+        });
       }
     } catch {
-      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'error' } : m));
+      setMessages(prev => {
+        const newMsgs = prev.map(m => m.id === tempId ? { ...m, status: 'error' } : m);
+        if (chatCache[chatId]) {
+          chatCache[chatId].messages = newMsgs;
+        }
+        return newMsgs;
+      });
     }
   };
 
@@ -270,6 +324,7 @@ export default function ChatWindow({ user, chatId }: any) {
         const chatRes = await apiFetch(`/chats/${chatId}?user_id=${user.id}`);
         if (chatRes.ok) {
           const data = await chatRes.json();
+          chatCache[chatId] = { chatInfo: data, messages: data.messages };
           setChatInfo(data);
           setMessages(data.messages);
         }

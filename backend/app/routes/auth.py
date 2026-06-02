@@ -84,7 +84,13 @@ def send_welcome_message(db: Session, new_user: models.User):
         db.add(member_user)
         db.commit()
 
-        # 3. Create welcome message
+    # 3. Check if a welcome message or any message from admin already exists in this chat
+    welcome_msg_exists = db.query(models.Message).filter(
+        models.Message.chat_id == existing_chat.id,
+        models.Message.sender_id == admin_user.id
+    ).first()
+
+    if not welcome_msg_exists:
         welcome_msg = models.Message(
             id=str(uuid.uuid4()),
             chat_id=existing_chat.id,

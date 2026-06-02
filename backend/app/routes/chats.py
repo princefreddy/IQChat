@@ -86,6 +86,14 @@ def add_chat_members(id: str, payload: schemas.AddMembers, current_user: models.
 @router.get("/", response_model=List[schemas.ChatListItemOut])
 def get_chats(user_id: str, db: Session = Depends(get_db)):
     """Optimized chat list — reduced N+1 queries by batch-loading users."""
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if user and user.username != 'admin':
+        try:
+            from .auth import send_welcome_message
+            send_welcome_message(db, user)
+        except Exception as e:
+            print(f"Error sending welcome message in get_chats: {e}")
+            
     memberships = db.query(models.ChatMember).filter(
         models.ChatMember.user_id == user_id, 
         models.ChatMember.is_deleted == False
@@ -327,3 +335,105 @@ def kick_chat_member(id: str, target_user_id: str, current_user: models.User = D
     db.delete(target_member)
     db.commit()
     return {"success": True}
+
+@router.post("/announcement")
+async def send_announcement(
+    payload: schemas.AnnouncementCreate,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if current_user.username != 'admin':
+        raise HTTPException(status_code=403, detail="Seul l'Administrateur Suprême peut faire une annonce.")
+        
+    # Get all users in the system (excluding admin itself)
+    users = db.query(models.User).filter(models.User.username != 'admin').all()
+    
+    sent_count = 0
+    import datetime
+    
+    for u in users:
+        try:
+            # 1. Get or create the private chat between admin and user
+            chat_ids_admin = {m.chat_id for m in db.query(models.ChatMember).filter(models.ChatMember.user_id == current_user.id).all()}
+            chat_ids_user = {m.chat_id for m in db.query(models.ChatMember).filter(models.ChatMember.user_id == u.id).all()}
+            common_ids = chat_ids_admin.intersection(chat_ids_user)
+            
+            existing_chat = None
+            if common_ids:
+                existing_chat = db.query(models.Chat).filter(models.Chat.id.in_(list(common_ids)), models.Chat.type == 'private').first()
+
+            if not existing_chat:
+                existing_chat = models.Chat(
+                    id=str(uuid.uuid4()),
+                    type='private',
+                    name=None,
+                    avatar_url=None,
+                    status='accepted'
+                )
+                db.add(existing_chat)
+                db.commit()
+
+                # Add members
+                member_admin = models.ChatMember(
+                    id=str(uuid.uuid4()),
+                    chat_id=existing_chat.id,
+                    user_id=current_user.id,
+                    role="admin"
+                )
+                member_user = models.ChatMember(
+                    id=str(uuid.uuid4()),
+                    chat_id=existing_chat.id,
+                    user_id=u.id,
+                    role="member"
+                )
+                db.add(member_admin)
+                db.add(member_user)
+                db.commit()
+            
+            # Send message in the chat
+            new_msg = models.Message(
+                id=str(uuid.uuid4()),
+                chat_id=existing_chat.id,
+                sender_id=current_user.id,
+                content=payload.content,
+                type='normal',
+                is_anonymous=False,
+                ttl=None,
+                reaction=None,
+                is_read=False,
+                visible_at=None,
+                created_at=datetime.datetime.utcnow(),
+                expires_at=None
+            )
+            db.add(new_msg)
+            db.commit()
+            
+            # Broadcast the message to the user if they are online
+            msg_out = schemas.MessageOut(
+                id=new_msg.id,
+                chat_id=new_msg.chat_id,
+                sender_id=current_user.id,
+                sender_username=current_user.username,
+                sender_avatar=current_user.avatar_url,
+                content=new_msg.content,
+                type=new_msg.type,
+                is_anonymous=new_msg.is_anonymous,
+                ttl=new_msg.ttl,
+                reaction=new_msg.reaction,
+                is_read=new_msg.is_read,
+                visible_at=new_msg.visible_at,
+                created_at=new_msg.created_at,
+                expires_at=new_msg.expires_at,
+                file_url=new_msg.file_url,
+                file_type=new_msg.file_type,
+                file_name=new_msg.file_name,
+                reply_to_id=new_msg.reply_to_id,
+                reply_to_content=None,
+                reply_to_sender=None,
+            )
+            await manager.broadcast_to_chat(existing_chat.id, msg_out.model_dump(mode='json'))
+            sent_count += 1
+        except Exception as e:
+            print(f"Error sending announcement to user {u.username}: {e}")
+            
+    return {"success": True, "sent_count": sent_count}

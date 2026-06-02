@@ -5,12 +5,15 @@ import MessageBubble from '../../components/MessageBubble';
 import MessageInput from '../../components/MessageInput';
 import { getAuthData, apiFetch, getChatWsUrl, BASE_URL } from '../../lib/api';
 
+const chatCache: Record<string, { chatInfo: any; messages: any[] }> = {};
+
 export default function ChatScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const cached = chatCache[id as string];
   const [user, setUser] = useState<any>(null);
-  const [chatInfo, setChatInfo] = useState<any>(null);
-  const [messages, setMessages] = useState<any[]>([]);
+  const [chatInfo, setChatInfo] = useState<any>(cached ? cached.chatInfo : null);
+  const [messages, setMessages] = useState<any[]>(cached ? cached.messages : []);
   const [replyingTo, setReplyingTo] = useState<any>(null);
   const [viewImage, setViewImage] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
@@ -110,8 +113,17 @@ export default function ChatScreen() {
         apiFetch(`/chats/${id}?user_id=${parsed.id}`)
           .then(r => r.json())
           .then(data => {
+            const prevCached = chatCache[id as string];
+            const hasChanged = !prevCached || 
+                               prevCached.messages.length !== data.messages.length ||
+                               prevCached.messages[prevCached.messages.length - 1]?.id !== data.messages[data.messages.length - 1]?.id ||
+                               prevCached.messages.some((msg, idx) => msg.is_read !== data.messages[idx]?.is_read || msg.reaction !== data.messages[idx]?.reaction);
+            
+            chatCache[id as string] = { chatInfo: data, messages: data.messages };
             setChatInfo(data);
-            setMessages(data.messages);
+            if (hasChanged) {
+              setMessages(data.messages);
+            }
           });
 
         ws = new WebSocket(getChatWsUrl(id as string, parsed.id));
@@ -145,33 +157,46 @@ export default function ChatScreen() {
           }
           
           if (data.event === 'read') {
-            setMessages(prev => prev.map(m => 
-              m.sender_id === parsed.id ? { ...m, is_read: true } : m
-            ));
+            setMessages(prev => {
+              const newMsgs = prev.map(m => 
+                m.sender_id === parsed.id ? { ...m, is_read: true } : m
+              );
+              if (chatCache[id as string]) {
+                chatCache[id as string].messages = newMsgs;
+              }
+              return newMsgs;
+            });
             return;
           }
           
           // Regular message
           setMessages(prev => {
-             // 1. Try to match by real database ID
-             const idx = prev.findIndex(m => m.id === data.id);
-             if (idx !== -1) {
-                const arr = [...prev];
-                arr[idx] = data;
-                return arr;
-             }
+             const newMsgs = (() => {
+               // 1. Try to match by real database ID
+               const idx = prev.findIndex(m => m.id === data.id);
+               if (idx !== -1) {
+                  const arr = [...prev];
+                  arr[idx] = data;
+                  return arr;
+               }
 
-             // 2. Try to match by optimistic sending status and content/sender
-             if (data.sender_id === parsed.id) {
-                const optIdx = prev.findIndex(m => m.status === 'sending' && m.content === data.content);
-                if (optIdx !== -1) {
-                   const arr = [...prev];
-                   arr[optIdx] = data; // replace temp with server response
-                   return arr;
-                }
+               // 2. Try to match by optimistic sending status and content/sender
+               if (data.sender_id === parsed.id) {
+                  const optIdx = prev.findIndex(m => m.status === 'sending' && m.content === data.content);
+                  if (optIdx !== -1) {
+                     const arr = [...prev];
+                     arr[optIdx] = data; // replace temp with server response
+                     return arr;
+                  }
+               }
+               
+               return [...prev, data];
+             })();
+
+             if (chatCache[id as string]) {
+               chatCache[id as string].messages = newMsgs;
              }
-             
-             return [...prev, data];
+             return newMsgs;
           });
           
           // Smooth scroll to bottom on new message
@@ -186,6 +211,7 @@ export default function ChatScreen() {
              const res = await apiFetch(`/chats/${id}?user_id=${parsed.id}`);
              if (res.ok) {
                const data = await res.json();
+               chatCache[id as string] = { chatInfo: data, messages: data.messages };
                setChatInfo(data);
             }
           } catch {}
@@ -234,7 +260,13 @@ export default function ChatScreen() {
       status: 'sending'
     };
 
-    setMessages(prev => [...prev, tempMessage]);
+    setMessages(prev => {
+      const newMsgs = [...prev, tempMessage];
+      if (chatCache[id as string]) {
+        chatCache[id as string].messages = newMsgs;
+      }
+      return newMsgs;
+    });
     setTimeout(() => {
       flatListRef.current?.scrollToEnd({ animated: true });
     }, 100);
@@ -245,10 +277,22 @@ export default function ChatScreen() {
         body: JSON.stringify({ chat_id: id, ...msgData })
       });
       if (!res.ok) {
-        setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'error' } : m));
+        setMessages(prev => {
+          const newMsgs = prev.map(m => m.id === tempId ? { ...m, status: 'error' } : m);
+          if (chatCache[id as string]) {
+            chatCache[id as string].messages = newMsgs;
+          }
+          return newMsgs;
+        });
       }
     } catch(e) {
-      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'error' } : m));
+      setMessages(prev => {
+        const newMsgs = prev.map(m => m.id === tempId ? { ...m, status: 'error' } : m);
+        if (chatCache[id as string]) {
+          chatCache[id as string].messages = newMsgs;
+        }
+        return newMsgs;
+      });
     }
   };
 
@@ -269,6 +313,7 @@ export default function ChatScreen() {
         const chatRes = await apiFetch(`/chats/${id}?user_id=${user.id}`);
         if (chatRes.ok) {
           const data = await chatRes.json();
+          chatCache[id as string] = { chatInfo: data, messages: data.messages };
           setChatInfo(data);
           setMessages(data.messages);
         }

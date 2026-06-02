@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Linking, ActivityIndicator } from 'react-native';
 import { Video, ResizeMode, Audio } from 'expo-av';
 
 function VoicePlayer({ url }: { url: string }) {
   const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const soundRef = useRef<Audio.Sound | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [position, setPosition] = useState(0);
@@ -11,11 +12,11 @@ function VoicePlayer({ url }: { url: string }) {
 
   useEffect(() => {
     return () => {
-      if (sound) {
-        sound.unloadAsync().catch(() => {});
+      if (soundRef.current) {
+        soundRef.current.unloadAsync().catch(() => {});
       }
     };
-  }, [sound]);
+  }, []);
 
   const onPlaybackStatusUpdate = (status: any) => {
     if (status.isLoaded) {
@@ -25,22 +26,31 @@ function VoicePlayer({ url }: { url: string }) {
       if (status.didJustFinish) {
         setIsPlaying(false);
         setPosition(0);
-        sound?.setPositionAsync(0).catch(() => {});
+        soundRef.current?.setPositionAsync(0).catch(() => {});
       }
     }
   };
 
   const handlePlayPause = async () => {
     try {
-      if (sound) {
+      const activeSound = soundRef.current;
+      if (activeSound) {
         if (isPlaying) {
-          await sound.pauseAsync();
+          await activeSound.pauseAsync();
         } else {
           await Audio.setAudioModeAsync({
             allowsRecordingIOS: false,
             playsInSilentModeIOS: true,
           });
-          await sound.playAsync();
+          const status = await activeSound.getStatusAsync();
+          if (status.isLoaded) {
+            const dur = status.durationMillis || 0;
+            const pos = status.positionMillis || 0;
+            if (status.didJustFinish || pos >= dur - 100) {
+              await activeSound.setPositionAsync(0);
+            }
+          }
+          await activeSound.playAsync();
         }
       } else {
         setIsLoading(true);
@@ -58,6 +68,7 @@ function VoicePlayer({ url }: { url: string }) {
           { shouldPlay: true },
           onPlaybackStatusUpdate
         );
+        soundRef.current = newSound;
         setSound(newSound);
         setIsLoading(false);
       }

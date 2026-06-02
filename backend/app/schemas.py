@@ -111,3 +111,6 @@ class ChatListItemOut(ChatOutBase):
     members: List[ChatMemberOut] = []
     last_message_at: Optional[datetime] = None
     unread_count: int = 0
+
+class AnnouncementCreate(BaseModel):
+    content: str
