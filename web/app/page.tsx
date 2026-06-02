@@ -1,7 +1,7 @@
 "use client"
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { setAuthData, getAuthData, BASE_URL } from '@/lib/api';
+import { setAuthData, getAuthData, BASE_URL, fetchWithRetry } from '@/lib/api';
 
 export default function Home() {
   const router = useRouter();
@@ -10,6 +10,7 @@ export default function Home() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [wakingUp, setWakingUp] = useState(false);
 
   // Form Fields
   const [identifier, setIdentifier] = useState(''); // email or username for login
@@ -32,14 +33,25 @@ export default function Home() {
     e.preventDefault();
     setError('');
     setSubmitting(true);
+    setWakingUp(false);
+
+    // Set a timer to show "waking up" message if it takes more than 4 seconds
+    const wakingTimer = setTimeout(() => {
+      setWakingUp(true);
+    }, 4000);
+
     try {
       if (isLogin) {
-        const res = await fetch(`${BASE_URL}/auth/login`, {
+        const res = await fetchWithRetry(`${BASE_URL}/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ identifier, password })
+          body: JSON.stringify({ identifier, password }),
+          timeout: 15000,
+          retries: 4,
+          delay: 2500
         });
         const data = await res.json();
+        clearTimeout(wakingTimer);
         if (res.ok) {
           setAuthData({ token: data.token, user: data.user });
           router.push('/chat');
@@ -48,11 +60,12 @@ export default function Home() {
         }
       } else {
         if (password.length < 6) {
+          clearTimeout(wakingTimer);
           setError("Le mot de passe doit contenir au moins 6 caractères");
           setSubmitting(false);
           return;
         }
-        const res = await fetch(`${BASE_URL}/auth/register`, {
+        const res = await fetchWithRetry(`${BASE_URL}/auth/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -61,9 +74,13 @@ export default function Home() {
              full_name: fullName,
              password,
              avatar_url: `https://api.dicebear.com/7.x/adventurer/svg?seed=${username}`
-          })
+          }),
+          timeout: 15000,
+          retries: 4,
+          delay: 2500
         });
         const data = await res.json();
+        clearTimeout(wakingTimer);
         if (res.ok) {
           setAuthData({ token: data.token, user: data.user });
           router.push('/chat');
@@ -72,9 +89,11 @@ export default function Home() {
         }
       }
     } catch {
-      setError("Erreur réseau — vérifiez que le serveur est en cours d'exécution");
+      clearTimeout(wakingTimer);
+      setError("Le serveur de production met trop de temps à répondre. Réessayez dans quelques instants.");
     }
     setSubmitting(false);
+    setWakingUp(false);
   };
 
   if (loading) return null;
@@ -252,6 +271,21 @@ export default function Home() {
             {submitting ? '⏳ Traitement royal...' : (isLogin ? 'Accéder au Royaume' : 'Créer mon Compte Royal')}
           </button>
         </form>
+        {wakingUp && (
+          <div style={{
+            marginTop: '20px',
+            padding: '12px',
+            background: 'rgba(197, 160, 59, 0.08)',
+            border: '1px solid rgba(197, 160, 59, 0.2)',
+            borderRadius: '10px',
+            color: 'var(--accent-gold)',
+            fontSize: '13px',
+            lineHeight: '1.5',
+            textAlign: 'center'
+          }}>
+            🔌 Le serveur de production (Render) est en cours de démarrage... Cela peut prendre jusqu'à une minute. Veuillez patienter.
+          </div>
+        )}
       </div>
     </div>
   );

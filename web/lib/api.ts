@@ -59,16 +59,65 @@ function getHeaders(extraHeaders?: Record<string, string>): Record<string, strin
 }
 
 /**
+ * Fetch helper with a timeout using AbortController.
+ */
+export async function fetchWithTimeout(
+  url: string,
+  options: RequestInit & { timeout?: number } = {}
+): Promise<Response> {
+  const { timeout = 15000, ...fetchOptions } = options;
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const response = await fetch(url, {
+      ...fetchOptions,
+      signal: controller.signal,
+    });
+    clearTimeout(id);
+    return response;
+  } catch (error) {
+    clearTimeout(id);
+    throw error;
+  }
+}
+
+/**
+ * Fetch helper with retries and exponential/fixed backoff.
+ */
+export async function fetchWithRetry(
+  url: string,
+  options: RequestInit & { timeout?: number; retries?: number; delay?: number } = {}
+): Promise<Response> {
+  const { retries = 3, delay = 3000, ...fetchOptions } = options;
+  let lastError: any;
+
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fetchWithTimeout(url, fetchOptions);
+    } catch (err: any) {
+      lastError = err;
+      // If it's a timeout or network request failed, retry after delay
+      if (i < retries - 1) {
+        console.log(`[API] Connection attempt ${i + 1} failed. Retrying in ${delay}ms...`, err.message || err);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+  throw lastError;
+}
+
+/**
  * Make an authenticated API request.
  */
 export async function apiFetch(
   path: string, 
-  options: RequestInit = {}
+  options: RequestInit & { timeout?: number; retries?: number; delay?: number } = {}
 ): Promise<Response> {
   const url = `${BASE_URL}${path}`;
   const headers = getHeaders(options.headers as Record<string, string>);
   
-  return fetch(url, {
+  return fetchWithRetry(url, {
     ...options,
     headers,
   });

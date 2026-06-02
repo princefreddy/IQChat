@@ -14,7 +14,7 @@ import {
   StatusBar
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { getAuthData, setAuthData, BASE_URL } from '../lib/api';
+import { getAuthData, setAuthData, BASE_URL, fetchWithRetry } from '../lib/api';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
@@ -24,6 +24,7 @@ export default function AuthScreen() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [wakingUp, setWakingUp] = useState(false);
   
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -45,36 +46,59 @@ export default function AuthScreen() {
   const handleSubmit = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSubmitting(true);
+    setWakingUp(false);
+    
+    // Set a timer to show "waking up" message if it takes more than 4 seconds
+    const wakingTimer = setTimeout(() => {
+      setWakingUp(true);
+    }, 4000);
+
     try {
       let res, data;
       
       if (isLogin) {
-        if (!identifier || !password) { setSubmitting(false); return; }
-        res = await fetch(`${BASE_URL}/auth/login`, {
+        if (!identifier || !password) { 
+          clearTimeout(wakingTimer);
+          setSubmitting(false); 
+          return; 
+        }
+        res = await fetchWithRetry(`${BASE_URL}/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ identifier, password })
+          body: JSON.stringify({ identifier, password }),
+          timeout: 15000,
+          retries: 4,
+          delay: 2500
         });
         data = await res.json();
       } else {
-        if (!username || !email || !password || !fullName) { setSubmitting(false); return; }
+        if (!username || !email || !password || !fullName) { 
+          clearTimeout(wakingTimer);
+          setSubmitting(false); 
+          return; 
+        }
         if (password.length < 6) {
+          clearTimeout(wakingTimer);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
           Alert.alert('Erreur', 'Le mot de passe doit contenir au moins 6 caractères');
           setSubmitting(false);
           return;
         }
-        res = await fetch(`${BASE_URL}/auth/register`, {
+        res = await fetchWithRetry(`${BASE_URL}/auth/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             username, email, full_name: fullName, password,
             avatar_url: `https://api.dicebear.com/7.x/adventurer/svg?seed=${username}`
-          })
+          }),
+          timeout: 15000,
+          retries: 4,
+          delay: 2500
         });
         data = await res.json();
       }
 
+      clearTimeout(wakingTimer);
       if (res.ok) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         await setAuthData({ token: data.token, user: data.user });
@@ -84,10 +108,12 @@ export default function AuthScreen() {
         Alert.alert('Erreur', data.detail || 'Authentification échouée');
       }
     } catch (e: any) {
+      clearTimeout(wakingTimer);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Erreur Réseau', e.message || 'Impossible de joindre le serveur');
+      Alert.alert('Erreur Réseau', 'Le serveur de production met trop de temps à répondre. Réessayez dans quelques instants ou vérifiez votre connexion.');
     }
     setSubmitting(false);
+    setWakingUp(false);
   };
 
   if (loading) {
@@ -235,11 +261,22 @@ export default function AuthScreen() {
             disabled={submitting}
           >
             {submitting ? (
-              <ActivityIndicator size="small" color="#1A1A1A" />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <ActivityIndicator size="small" color="#1A1A1A" />
+                <Text style={[styles.buttonText, { color: '#1A1A1A' }]}>Chargement royal...</Text>
+              </View>
             ) : (
               <Text style={styles.buttonText}>{isLogin ? 'Entrer dans le Royaume' : 'Créer un Compte Royal'}</Text>
             )}
           </TouchableOpacity>
+
+          {wakingUp && (
+            <View style={{ marginTop: 16, padding: 12, backgroundColor: 'rgba(197, 160, 59, 0.08)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(197, 160, 59, 0.2)' }}>
+              <Text style={{ color: '#C5A03B', fontSize: 13, textAlign: 'center', lineHeight: 18 }}>
+                🔌 Le serveur de production (Render) est en cours de démarrage... Cela peut prendre jusqu'à une minute. Veuillez patienter.
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

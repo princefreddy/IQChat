@@ -78,10 +78,11 @@ export default function ChatListScreen() {
         getAuthData().then(auth => {
           if (auth?.user) {
             fetchChats(auth.user);
-            fetchDirectory();
+            // fetchDirectory is removed from background polling as users do not change often.
+            // It is loaded on initial screen load and manual refresh.
           }
         });
-      }, 15000);
+      }, 30000);
       return () => clearInterval(interval);
     }, [viewMode])
   );

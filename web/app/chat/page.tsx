@@ -38,7 +38,7 @@ export default function ChatPage() {
       } catch {}
     };
     checkFeed();
-    const interval = setInterval(checkFeed, 3000);
+    const interval = setInterval(checkFeed, 30000);
     return () => clearInterval(interval);
   }, [user, activeView]);
 

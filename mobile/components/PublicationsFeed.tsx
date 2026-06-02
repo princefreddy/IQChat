@@ -29,7 +29,7 @@ export default function PublicationsFeed({ user }: any) {
   useFocusEffect(
     useCallback(() => {
       fetchPublications();
-      const interval = setInterval(fetchPublications, 20000);
+      const interval = setInterval(fetchPublications, 60000);
       return () => clearInterval(interval);
     }, [user])
   );

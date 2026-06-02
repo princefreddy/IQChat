@@ -39,8 +39,9 @@ export default function ChatList({ user, activeChatId, onSelectChat }: any) {
     fetchDirectory();
     const interval = setInterval(() => {
       fetchChats();
-      fetchDirectory();
-    }, 15000);
+      // fetchDirectory is removed from background interval as user directory is static enough
+      // and is loaded on initial mount.
+    }, 30000);
     return () => clearInterval(interval);
   }, [currentUser]);
 
