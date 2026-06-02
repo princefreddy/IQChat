@@ -156,12 +156,24 @@ export default function ChatWindow({ user, chatId }: any) {
       
       // Regular message
       setMessages((prev) => {
+        // 1. Try to match by real database ID
         const idx = prev.findIndex(m => m.id === data.id);
         if (idx !== -1) {
           const updated = [...prev];
           updated[idx] = data;
           return updated;
         }
+
+        // 2. Try to match by optimistic sending status and content/sender
+        if (data.sender_id === user.id) {
+           const optIdx = prev.findIndex(m => m.status === 'sending' && m.content === data.content);
+           if (optIdx !== -1) {
+              const updated = [...prev];
+              updated[optIdx] = data; // replace temp with server response
+              return updated;
+           }
+        }
+        
         return [...prev, data];
       });
     };
@@ -169,7 +181,7 @@ export default function ChatWindow({ user, chatId }: any) {
     // Poll chat info every 30s to detect status changes (invite accepted, members updated, etc.)
     const chatPollInterval = setInterval(async () => {
       try {
-        const res = await fetch(`${BASE_URL}/chats/${chatId}?user_id=${user.id}`);
+        const res = await apiFetch(`/chats/${chatId}?user_id=${user.id}`);
         if (res.ok) {
           const data = await res.json();
           setChatInfo(data);
@@ -201,13 +213,44 @@ export default function ChatWindow({ user, chatId }: any) {
 
   const handleSend = async (msgData: any) => {
     sendTypingEvent(false); // Stop typing indicator
+    const tempId = `temp-${Date.now()}`;
+    const tempMessage = {
+      id: tempId,
+      chat_id: chatId,
+      sender_id: user.id,
+      sender_username: user.username,
+      sender_name: user.full_name || user.username,
+      sender_avatar: user.avatar_url,
+      content: msgData.content || '',
+      file_url: msgData.file_url || null,
+      file_type: msgData.file_type || null,
+      file_name: msgData.file_name || null,
+      created_at: new Date().toISOString(),
+      type: msgData.type || 'text',
+      visible_at: msgData.visible_at || null,
+      expires_at: msgData.expires_at || null,
+      reply_to_id: msgData.reply_to_id || null,
+      reply_to_sender: msgData.reply_to_sender || null,
+      reply_to_content: msgData.reply_to_content || null,
+      is_anonymous: msgData.is_anonymous || false,
+      reactions: [],
+      status: 'sending'
+    };
+
+    setMessages(prev => [...prev, tempMessage]);
+    setReplyingTo(null);
+
     try {
-      await apiFetch('/messages/send', {
+      const res = await apiFetch('/messages/send', {
         method: 'POST',
         body: JSON.stringify({ chat_id: chatId, ...msgData })
       });
-      setReplyingTo(null);
-    } catch {}
+      if (!res.ok) {
+        setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'error' } : m));
+      }
+    } catch {
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'error' } : m));
+    }
   };
 
   const handleReaction = async (msgId: string, emoji: string) => {
@@ -221,10 +264,10 @@ export default function ChatWindow({ user, chatId }: any) {
 
   const handleAccept = async () => {
     try {
-      const res = await fetch(`${BASE_URL}/chats/${chatId}/accept?user_id=${user.id}`, { method: 'PATCH' });
+      const res = await apiFetch(`/chats/${chatId}/accept?user_id=${user.id}`, { method: 'PATCH' });
       if (res.ok) {
         // Re-fetch full chat data so input bar appears instantly
-        const chatRes = await fetch(`${BASE_URL}/chats/${chatId}?user_id=${user.id}`);
+        const chatRes = await apiFetch(`/chats/${chatId}?user_id=${user.id}`);
         if (chatRes.ok) {
           const data = await chatRes.json();
           setChatInfo(data);

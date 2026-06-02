@@ -153,14 +153,31 @@ export default function ChatScreen() {
           
           // Regular message
           setMessages(prev => {
+             // 1. Try to match by real database ID
              const idx = prev.findIndex(m => m.id === data.id);
              if (idx !== -1) {
                 const arr = [...prev];
                 arr[idx] = data;
                 return arr;
              }
+
+             // 2. Try to match by optimistic sending status and content/sender
+             if (data.sender_id === parsed.id) {
+                const optIdx = prev.findIndex(m => m.status === 'sending' && m.content === data.content);
+                if (optIdx !== -1) {
+                   const arr = [...prev];
+                   arr[optIdx] = data; // replace temp with server response
+                   return arr;
+                }
+             }
+             
              return [...prev, data];
           });
+          
+          // Smooth scroll to bottom on new message
+          setTimeout(() => {
+            flatListRef.current?.scrollToEnd({ animated: true });
+          }, 100);
         };
 
         // Poll chat info every 30s to detect status changes (invite accepted, members updated, etc.)
@@ -196,12 +213,43 @@ export default function ChatScreen() {
 
   const handleSend = async (msgData: any) => {
     sendTypingEvent(false);
+    const tempId = `temp-${Date.now()}`;
+    const tempMessage = {
+      id: tempId,
+      chat_id: id,
+      sender_id: user.id,
+      sender_username: user.username,
+      sender_name: user.full_name || user.username,
+      content: msgData.content || '',
+      file_url: msgData.file_url || null,
+      file_type: msgData.file_type || null,
+      file_name: msgData.file_name || null,
+      created_at: new Date().toISOString(),
+      type: msgData.type || 'text',
+      visible_at: msgData.visible_at || null,
+      expires_at: msgData.expires_at || null,
+      reply_to: msgData.reply_to || null,
+      is_anonymous: msgData.is_anonymous || false,
+      reactions: [],
+      status: 'sending'
+    };
+
+    setMessages(prev => [...prev, tempMessage]);
+    setTimeout(() => {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+
     try {
-      await apiFetch('/messages/send', {
+      const res = await apiFetch('/messages/send', {
         method: 'POST',
         body: JSON.stringify({ chat_id: id, ...msgData })
       });
-    } catch(e) {}
+      if (!res.ok) {
+        setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'error' } : m));
+      }
+    } catch(e) {
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'error' } : m));
+    }
   };
 
   const handleReaction = async (msgId: string, emoji: string) => {

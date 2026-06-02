@@ -210,7 +210,8 @@ export default function MessageBubble({ message, isOwn, currentUserId, onReactio
             border: '1px solid var(--border-glass)',
             position: 'relative',
             overflow: 'hidden',
-            transition: 'all 0.3s'
+            transition: 'all 0.3s',
+            opacity: message.status === 'sending' ? 0.6 : 1
           }}
         >
           {isHidden && !isRevealed && (
@@ -291,9 +292,15 @@ export default function MessageBubble({ message, isOwn, currentUserId, onReactio
               <span style={{ fontSize: '10px', color: isOwn ? 'rgba(255,255,255,0.6)' : 'var(--text-secondary)' }}>{timeStr}</span>
               {/* Read receipts for own messages */}
               {isOwn && (
-                <span className={message.is_read ? 'read-check' : ''} style={{ fontSize: '11px', color: message.is_read ? '#60a5fa' : 'rgba(255,255,255,0.4)', transition: 'color 0.5s ease' }}>
-                  {message.is_read ? '✓✓' : '✓'}
-                </span>
+                message.status === 'sending' ? (
+                  <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>⏳</span>
+                ) : message.status === 'error' ? (
+                  <span style={{ fontSize: '11px', color: '#ff4d4f' }} title="Erreur d'envoi (problème réseau)">⚠️</span>
+                ) : (
+                  <span className={message.is_read ? 'read-check' : ''} style={{ fontSize: '11px', color: message.is_read ? '#60a5fa' : 'rgba(255,255,255,0.4)', transition: 'color 0.5s ease' }}>
+                    {message.is_read ? '✓✓' : '✓'}
+                  </span>
+                )
               )}
             </div>
           </div>

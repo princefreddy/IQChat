@@ -177,7 +177,8 @@ export default function MessageBubble({ message, isOwn, currentUserId, onReactio
             style={[
               styles.bubble, 
               isOwn ? styles.bubbleOwn : styles.bubbleOther,
-              (isHidden && !isRevealed) && styles.bubbleHidden
+              (isHidden && !isRevealed) && styles.bubbleHidden,
+              message.status === 'sending' && { opacity: 0.6 }
             ]}
           >
             {(isHidden && !isRevealed) ? (
@@ -233,9 +234,15 @@ export default function MessageBubble({ message, isOwn, currentUserId, onReactio
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4, marginTop: 4 }}>
                   <Text style={{ fontSize: 10, color: isOwn ? 'rgba(255,255,255,0.6)' : '#888' }}>{timeStr}</Text>
                   {isOwn && (
-                    <Text style={{ fontSize: 11, color: message.is_read ? '#60a5fa' : 'rgba(255,255,255,0.4)' }}>
-                      {message.is_read ? '✓✓' : '✓'}
-                    </Text>
+                    message.status === 'sending' ? (
+                      <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>⏳</Text>
+                    ) : message.status === 'error' ? (
+                      <Text style={{ fontSize: 11, color: '#ff4d4f' }}>⚠️</Text>
+                    ) : (
+                      <Text style={{ fontSize: 11, color: message.is_read ? '#60a5fa' : 'rgba(255,255,255,0.4)' }}>
+                        {message.is_read ? '✓✓' : '✓'}
+                      </Text>
+                    )
                   )}
                 </View>
                 

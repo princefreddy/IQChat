@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, Image, RefreshControl, Modal, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, Image, RefreshControl, Modal, Alert, KeyboardAvoidingView, Platform, LayoutAnimation, UIManager } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
@@ -7,10 +7,19 @@ import PublicationsFeed from '../../components/PublicationsFeed';
 import { getAuthData, setAuthData, clearAuthData, apiFetch, uploadFile, BASE_URL } from '../../lib/api';
 import { ChatSkeleton } from '../../components/SkeletonLoader';
 
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 export default function ChatListScreen() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [token, setToken] = useState<string>('');
+  
+  const changeViewMode = (mode: 'chats' | 'directory' | 'feed') => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setViewMode(mode);
+  };
   
   const [chats, setChats] = useState<any[]>([]);
   const [directory, setDirectory] = useState<any[]>([]);
@@ -311,13 +320,13 @@ export default function ChatListScreen() {
       </Modal>
 
       <View style={{ flexDirection: 'row', padding: 16, gap: 8 }}>
-        <TouchableOpacity style={[styles.toggleBtn, viewMode === 'chats' && styles.activeToggle]} onPress={() => setViewMode('chats')}>
+        <TouchableOpacity style={[styles.toggleBtn, viewMode === 'chats' && styles.activeToggle]} onPress={() => changeViewMode('chats')}>
            <Text style={[styles.toggleText, viewMode === 'chats' && { color: '#000' }]}>DM</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.toggleBtn, viewMode === 'directory' && styles.activeToggle]} onPress={() => setViewMode('directory')}>
+        <TouchableOpacity style={[styles.toggleBtn, viewMode === 'directory' && styles.activeToggle]} onPress={() => changeViewMode('directory')}>
            <Text style={[styles.toggleText, viewMode === 'directory' && { color: '#000' }]}>Annuaire</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.toggleBtn, viewMode === 'feed' && styles.activeToggle, {position: 'relative'}]} onPress={async () => { setViewMode('feed'); setHasNewFeed(false); const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage'); AsyncStorage.setItem('iqchat_last_seen_feed', new Date().toISOString()); }}>
+        <TouchableOpacity style={[styles.toggleBtn, viewMode === 'feed' && styles.activeToggle, {position: 'relative'}]} onPress={async () => { changeViewMode('feed'); setHasNewFeed(false); const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage'); AsyncStorage.setItem('iqchat_last_seen_feed', new Date().toISOString()); }}>
            <Text style={[styles.toggleText, viewMode === 'feed' && { color: '#000' }]}>Feed</Text>
            {hasNewFeed && <View style={{ position: 'absolute', top: 4, right: 4, width: 8, height: 8, backgroundColor: '#ff4d4f', borderRadius: 4 }} />}
         </TouchableOpacity>

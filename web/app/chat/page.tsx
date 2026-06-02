@@ -86,7 +86,7 @@ export default function ChatPage() {
               {hasNewFeed && <div style={{ position: 'absolute', top: '4px', right: '4px', width: '8px', height: '8px', backgroundColor: '#ff4d4f', borderRadius: '4px' }} />}
             </button>
           </div>
-          <div style={{ flex: 1, overflow: 'hidden' }}>
+          <div style={{ flex: 1, overflow: 'hidden' }} key={activeView} className="animate-fade-in">
             {activeView === 'chats' ? (
               <ChatList user={user} activeChatId={activeChatId} onSelectChat={setActiveChatId} />
             ) : (
@@ -129,17 +129,19 @@ export default function ChatPage() {
               </button>
             </div>
           )}
-          {activeView === 'feed' ? (
-            <PublicationsFeed user={user} />
-          ) : activeChatId ? (
-            <ChatWindow user={user} chatId={activeChatId} />
-          ) : (
-            <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '12px', color: 'var(--text-secondary)' }}>
-              <div style={{ fontSize: '48px', opacity: 0.3 }}>💬</div>
-              <div>Sélectionnez une conversation ou passez sur le Fil Public.</div>
-              <div style={{ fontSize: '12px', opacity: 0.5 }}>Appuyez sur Escape pour revenir aux discussions</div>
-            </div>
-          )}
+          <div key={activeView + '-' + activeChatId} className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', flex: 1, height: '100%', overflow: 'hidden' }}>
+            {activeView === 'feed' ? (
+              <PublicationsFeed user={user} />
+            ) : activeChatId ? (
+              <ChatWindow user={user} chatId={activeChatId} />
+            ) : (
+              <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '12px', color: 'var(--text-secondary)' }}>
+                <div style={{ fontSize: '48px', opacity: 0.3 }}>💬</div>
+                <div>Sélectionnez une conversation ou passez sur le Fil Public.</div>
+                <div style={{ fontSize: '12px', opacity: 0.5 }}>Appuyez sur Escape pour revenir aux discussions</div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </ToastProvider>
