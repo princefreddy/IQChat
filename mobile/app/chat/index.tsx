@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, Image, RefreshControl, Modal, Alert, KeyboardAvoidingView, Platform, LayoutAnimation, UIManager } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -32,6 +32,11 @@ export default function ChatListScreen() {
   const [showSettings, setShowSettings] = useState(false);
   const [hasNewFeed, setHasNewFeed] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const chatsRef = useRef(chats);
+  const directoryRef = useRef(directory);
+  useEffect(() => { chatsRef.current = chats; }, [chats]);
+  useEffect(() => { directoryRef.current = directory; }, [directory]);
   
   const [editName, setEditName] = useState('');
   const [editAvatar, setEditAvatar] = useState('');
@@ -52,9 +57,17 @@ export default function ChatListScreen() {
     } catch(e) {}
   };
 
+  const viewModeRef = useRef(viewMode);
+  useEffect(() => {
+    viewModeRef.current = viewMode;
+  }, [viewMode]);
+
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
+      const isFirstLoad = chatsRef.current.length === 0 && directoryRef.current.length === 0;
+      if (isFirstLoad) {
+        setLoading(true);
+      }
       getAuthData().then(auth => {
         if (!auth?.token) {
           router.replace('/');
@@ -76,7 +89,7 @@ export default function ChatListScreen() {
             const serverDateStr = data.latest_time.endsWith('Z') ? data.latest_time : data.latest_time + 'Z';
             const lastSeen = await AsyncStorage.getItem('iqchat_last_seen_feed');
             if (!lastSeen || new Date(serverDateStr).getTime() > new Date(lastSeen).getTime()) {
-               if (viewMode !== 'feed') setHasNewFeed(true);
+               if (viewModeRef.current !== 'feed') setHasNewFeed(true);
             }
           }
         } catch(e) {}
@@ -87,13 +100,11 @@ export default function ChatListScreen() {
         getAuthData().then(auth => {
           if (auth?.user) {
             fetchChats(auth.user);
-            // fetchDirectory is removed from background polling as users do not change often.
-            // It is loaded on initial screen load and manual refresh.
           }
         });
       }, 30000);
       return () => clearInterval(interval);
-    }, [viewMode])
+    }, [])
   );
 
   const onRefresh = useCallback(() => {
@@ -332,55 +343,69 @@ export default function ChatListScreen() {
         </TouchableOpacity>
       </View>
 
-      {viewMode === 'chats' && (
-        <View style={styles.createBox}>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <TextInput style={styles.input} placeholder="Nouveau Groupe (nom)" placeholderTextColor="#888" value={newChatName} onChangeText={setNewChatName} />
-            <TouchableOpacity style={styles.createBtn} onPress={() => handleCreateChat('', newChatName, true)} disabled={!newChatName}>
-               <Text style={styles.createBtnText}>Grp</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
-      {viewMode === 'directory' && (
-        <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
-          <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#333' }}>
-            <Text style={{ fontSize: 16 }}>🔍</Text>
-            <TextInput
-              placeholder="Rechercher un utilisateur..."
-              placeholderTextColor="#888"
-              value={dirSearch}
-              onChangeText={setDirSearch}
-              autoCapitalize="none"
-              style={{ flex: 1, marginLeft: 12, color: '#FFF' }}
-            />
-            {dirSearch.length > 0 && (
-              <TouchableOpacity onPress={() => setDirSearch('')}>
-                <Text style={{ color: '#888', fontSize: 16 }}>✕</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-      )}
-
-      {viewMode === 'feed' ? (
-         <PublicationsFeed user={user} />
-      ) : loading ? (
+      {loading && chats.length === 0 && directory.length === 0 ? (
          <ChatSkeleton />
       ) : (
-         <FlatList 
-           data={viewMode === 'chats' ? chats : directory.filter(u => {
-             if (!dirSearch) return true;
-             const q = dirSearch.toLowerCase();
-             return (u.full_name?.toLowerCase().includes(q) || u.username?.toLowerCase().includes(q));
-           })}
-           keyExtractor={item => item.id}
-           renderItem={viewMode === 'chats' ? renderChatItem : renderDirItem}
-           contentContainerStyle={{ paddingBottom: 100 }}
-           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#C5A03B" />}
-           ListEmptyComponent={<Text style={{ color: '#888', textAlign: 'center', marginTop: 20 }}>Rien à afficher.</Text>}
-         />
+         <View style={{ flex: 1 }}>
+           {/* Discussions Tab */}
+           <View style={{ display: viewMode === 'chats' ? 'flex' : 'none', flex: 1 }}>
+             <View style={styles.createBox}>
+               <View style={{ flexDirection: 'row', gap: 8 }}>
+                 <TextInput style={styles.input} placeholder="Nouveau Groupe (nom)" placeholderTextColor="#888" value={newChatName} onChangeText={setNewChatName} />
+                 <TouchableOpacity style={styles.createBtn} onPress={() => handleCreateChat('', newChatName, true)} disabled={!newChatName}>
+                    <Text style={styles.createBtnText}>Grp</Text>
+                 </TouchableOpacity>
+               </View>
+             </View>
+             <FlatList 
+               data={chats}
+               keyExtractor={item => item.id}
+               renderItem={renderChatItem}
+               contentContainerStyle={{ paddingBottom: 100 }}
+               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#C5A03B" />}
+               ListEmptyComponent={<Text style={{ color: '#888', textAlign: 'center', marginTop: 20 }}>Rien à afficher.</Text>}
+             />
+           </View>
+
+           {/* Annuaire Tab */}
+           <View style={{ display: viewMode === 'directory' ? 'flex' : 'none', flex: 1 }}>
+             <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+               <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#333' }}>
+                 <Text style={{ fontSize: 16 }}>🔍</Text>
+                 <TextInput
+                   placeholder="Rechercher un utilisateur..."
+                   placeholderTextColor="#888"
+                   value={dirSearch}
+                   onChangeText={setDirSearch}
+                   autoCapitalize="none"
+                   style={{ flex: 1, marginLeft: 12, color: '#FFF' }}
+                 />
+                 {dirSearch.length > 0 && (
+                   <TouchableOpacity onPress={() => setDirSearch('')}>
+                     <Text style={{ color: '#888', fontSize: 16 }}>✕</Text>
+                   </TouchableOpacity>
+                 )}
+               </View>
+             </View>
+             <FlatList 
+               data={directory.filter(u => {
+                 if (!dirSearch) return true;
+                 const q = dirSearch.toLowerCase();
+                 return (u.full_name?.toLowerCase().includes(q) || u.username?.toLowerCase().includes(q));
+               })}
+               keyExtractor={item => item.id}
+               renderItem={renderDirItem}
+               contentContainerStyle={{ paddingBottom: 100 }}
+               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#C5A03B" />}
+               ListEmptyComponent={<Text style={{ color: '#888', textAlign: 'center', marginTop: 20 }}>Rien à afficher.</Text>}
+             />
+           </View>
+
+           {/* Feed Tab */}
+           <View style={{ display: viewMode === 'feed' ? 'flex' : 'none', flex: 1 }}>
+             <PublicationsFeed user={user} />
+           </View>
+         </View>
       )}
 
       <View style={styles.footer}>

@@ -71,7 +71,6 @@ export default function ChatPage() {
           <div style={{ display: 'flex', padding: '12px', gap: '8px', borderBottom: '1px solid var(--border-glass)' }}>
             <button 
               onClick={() => {
-                setActiveChatId(null);
                 setActiveView('chats');
               }}
               style={{ flex: 1, padding: '8px', background: activeView === 'chats' ? 'var(--accent-royal)' : 'transparent', color: '#FFF', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
@@ -86,14 +85,13 @@ export default function ChatPage() {
               {hasNewFeed && <div style={{ position: 'absolute', top: '4px', right: '4px', width: '8px', height: '8px', backgroundColor: '#ff4d4f', borderRadius: '4px' }} />}
             </button>
           </div>
-          <div style={{ flex: 1, overflow: 'hidden' }} key={activeView} className="animate-fade-in">
-            {activeView === 'chats' ? (
+          <div style={{ flex: 1, overflow: 'hidden' }} className="animate-fade-in">
+            <div style={{ display: activeView === 'chats' ? 'flex' : 'none', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
               <ChatList user={user} activeChatId={activeChatId} onSelectChat={setActiveChatId} />
-            ) : (
-              <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                Découvrez les dernières publications de la communauté sur le Fil Public.
-              </div>
-            )}
+            </div>
+            <div style={{ display: activeView === 'feed' ? 'block' : 'none', padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+              Découvrez les dernières publications de la communauté sur le Fil Public.
+            </div>
           </div>
         </div>
         <div className="chat-main glass-panel animate-slide-up" style={{ animationDelay: '0.1s' }}>
@@ -129,18 +127,18 @@ export default function ChatPage() {
               </button>
             </div>
           )}
-          <div key={activeView + '-' + activeChatId} className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', flex: 1, height: '100%', overflow: 'hidden' }}>
-            {activeView === 'feed' ? (
+          <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', flex: 1, height: '100%', overflow: 'hidden' }}>
+            <div style={{ display: activeView === 'feed' ? 'flex' : 'none', flexDirection: 'column', flex: 1, height: '100%', overflow: 'hidden' }}>
               <PublicationsFeed user={user} />
-            ) : activeChatId ? (
-              <ChatWindow user={user} chatId={activeChatId} />
-            ) : (
-              <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '12px', color: 'var(--text-secondary)' }}>
-                <div style={{ fontSize: '48px', opacity: 0.3 }}>💬</div>
-                <div>Sélectionnez une conversation ou passez sur le Fil Public.</div>
-                <div style={{ fontSize: '12px', opacity: 0.5 }}>Appuyez sur Escape pour revenir aux discussions</div>
-              </div>
-            )}
+            </div>
+            <div style={{ display: (activeView === 'chats' && activeChatId) ? 'flex' : 'none', flexDirection: 'column', flex: 1, height: '100%', overflow: 'hidden' }}>
+              {activeChatId && <ChatWindow user={user} chatId={activeChatId} />}
+            </div>
+            <div style={{ display: (activeView === 'chats' && !activeChatId) ? 'flex' : 'none', flex: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '12px', color: 'var(--text-secondary)', height: '100%' }}>
+              <div style={{ fontSize: '48px', opacity: 0.3 }}>💬</div>
+              <div>Sélectionnez une conversation ou passez sur le Fil Public.</div>
+              <div style={{ fontSize: '12px', opacity: 0.5 }}>Appuyez sur Escape pour revenir aux discussions</div>
+            </div>
           </div>
         </div>
       </div>

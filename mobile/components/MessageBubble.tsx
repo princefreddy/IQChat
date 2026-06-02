@@ -1,6 +1,102 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Linking } from 'react-native';
-import { Video, ResizeMode } from 'expo-av';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Linking, ActivityIndicator } from 'react-native';
+import { Video, ResizeMode, Audio } from 'expo-av';
+
+function VoicePlayer({ url }: { url: string }) {
+  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [position, setPosition] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (sound) {
+        sound.unloadAsync().catch(() => {});
+      }
+    };
+  }, [sound]);
+
+  const onPlaybackStatusUpdate = (status: any) => {
+    if (status.isLoaded) {
+      setPosition(status.positionMillis);
+      setDuration(status.durationMillis || 0);
+      setIsPlaying(status.isPlaying);
+      if (status.didJustFinish) {
+        setIsPlaying(false);
+        setPosition(0);
+        sound?.setPositionAsync(0).catch(() => {});
+      }
+    }
+  };
+
+  const handlePlayPause = async () => {
+    try {
+      if (sound) {
+        if (isPlaying) {
+          await sound.pauseAsync();
+        } else {
+          await Audio.setAudioModeAsync({
+            allowsRecordingIOS: false,
+            playsInSilentModeIOS: true,
+          });
+          await sound.playAsync();
+        }
+      } else {
+        setIsLoading(true);
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+        });
+        const { sound: newSound } = await Audio.Sound.createAsync(
+          { 
+            uri: url,
+            headers: {
+              'ngrok-skip-browser-warning': 'true'
+            }
+          },
+          { shouldPlay: true },
+          onPlaybackStatusUpdate
+        );
+        setSound(newSound);
+        setIsLoading(false);
+      }
+    } catch (e) {
+      console.error('Error playing sound:', e);
+      setIsLoading(false);
+    }
+  };
+
+  const formatTime = (millis: number) => {
+    const totalSecs = Math.floor(millis / 1000);
+    const m = Math.floor(totalSecs / 60);
+    const s = totalSecs % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  const progress = duration > 0 ? position / duration : 0;
+
+  return (
+    <View style={styles.audioPlayerContainer}>
+      <TouchableOpacity onPress={handlePlayPause} disabled={isLoading} style={styles.playButton}>
+        {isLoading ? (
+          <ActivityIndicator size="small" color="#C5A03B" />
+        ) : (
+          <Text style={styles.playIcon}>{isPlaying ? '⏸️' : '▶️'}</Text>
+        )}
+      </TouchableOpacity>
+      <View style={styles.progressSection}>
+        <View style={styles.progressBarBg}>
+          <View style={[styles.progressBarFill, { width: `${progress * 100}%` }]} />
+        </View>
+        <View style={styles.timeRow}>
+          <Text style={styles.timeText}>{formatTime(position)}</Text>
+          <Text style={styles.timeText}>{duration > 0 ? formatTime(duration) : '0:00'}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
 import { getUploadUrl, BASE_URL, apiFetch } from '../lib/api';
 
 import TicTacToe from './games/TicTacToe';
@@ -104,7 +200,14 @@ export default function MessageBubble({ message, isOwn, currentUserId, onReactio
     if (message.file_type === 'image') {
       return (
         <TouchableOpacity onPress={() => Linking.openURL(url)} style={{ marginTop: 8, borderRadius: 8, overflow: 'hidden' }}>
-          <Image source={{ uri: url }} style={{ width: 250, height: 200, borderRadius: 8 }} resizeMode="cover" />
+          <Image 
+            source={{ 
+              uri: url,
+              headers: { 'ngrok-skip-browser-warning': 'true' }
+            }} 
+            style={{ width: 250, height: 200, borderRadius: 8 }} 
+            resizeMode="cover" 
+          />
         </TouchableOpacity>
       );
     }
@@ -113,7 +216,10 @@ export default function MessageBubble({ message, isOwn, currentUserId, onReactio
       return (
         <View style={{ marginTop: 8, borderRadius: 8, overflow: 'hidden' }}>
           <Video
-            source={{ uri: url }}
+            source={{ 
+              uri: url,
+              headers: { 'ngrok-skip-browser-warning': 'true' }
+            }}
             style={{ width: 250, height: 180, borderRadius: 8 }}
             useNativeControls
             resizeMode={ResizeMode.CONTAIN}
@@ -123,16 +229,7 @@ export default function MessageBubble({ message, isOwn, currentUserId, onReactio
     }
 
     if (message.file_type === 'audio') {
-      return (
-        <View style={{ marginTop: 8, borderRadius: 8, overflow: 'hidden', backgroundColor: 'rgba(0,0,0,0.3)', padding: 4 }}>
-          <Video
-            source={{ uri: url }}
-            style={{ width: 220, height: 45 }}
-            useNativeControls
-            resizeMode={ResizeMode.CONTAIN}
-          />
-        </View>
-      );
+      return <VoicePlayer url={url} />;
     }
 
     // Generic file
@@ -163,7 +260,13 @@ export default function MessageBubble({ message, isOwn, currentUserId, onReactio
              <Text style={styles.senderText}>👤 Anonyme</Text>
           ) : (
              <>
-               <Image source={{ uri: message.sender_avatar }} style={styles.avatar} />
+               <Image 
+                  source={{ 
+                    uri: message.sender_avatar,
+                    headers: { 'ngrok-skip-browser-warning': 'true' }
+                  }} 
+                  style={styles.avatar} 
+               />
                <Text style={styles.senderText}>{message.sender_username}</Text>
              </>
           )}
@@ -308,5 +411,53 @@ const styles = StyleSheet.create({
   ephemeralText: { fontSize: 10, color: '#C5A03B', marginTop: 4, textAlign: 'right' },
   reactionBar: { flexDirection: 'row', gap: 8, marginTop: 4, opacity: 0.5 },
   reactionEmoji: { fontSize: 16 },
-  reactionBadge: { position: 'absolute', bottom: -12, backgroundColor: '#222', borderRadius: 12, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: '#C5A03B' }
+  reactionBadge: { position: 'absolute', bottom: -12, backgroundColor: '#222', borderRadius: 12, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: '#C5A03B' },
+  audioPlayerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 8,
+    width: 220,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    marginTop: 8
+  },
+  playButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(212,175,55,0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#C5A03B'
+  },
+  playIcon: {
+    fontSize: 14,
+    color: '#C5A03B',
+    textAlign: 'center'
+  },
+  progressSection: {
+    flex: 1,
+    justifyContent: 'center'
+  },
+  progressBarBg: {
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 2
+  },
+  progressBarFill: {
+    height: 4,
+    backgroundColor: '#C5A03B',
+    borderRadius: 2
+  },
+  timeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 4
+  },
+  timeText: {
+    fontSize: 10,
+    color: '#888'
+  }
 });
