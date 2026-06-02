@@ -42,7 +42,7 @@ export default function PublicationsFeed({ user }: any) {
 
   const loadChatsForSharing = async () => {
     try {
-       const res = await fetch(`${BASE_URL}/chats/?user_id=${user.id}`);
+       const res = await apiFetch(`/chats/?user_id=${user.id}`);
        if (res.ok) setMyChats(await res.json());
     } catch(err) {}
   };

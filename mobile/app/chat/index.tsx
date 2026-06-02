@@ -31,14 +31,14 @@ export default function ChatListScreen() {
 
   const fetchChats = async (usr: any) => {
     try {
-      const res = await fetch(`${BASE_URL}/chats/?user_id=${usr.id}`);
+      const res = await apiFetch(`/chats/?user_id=${usr.id}`);
       if (res.ok) setChats(await res.json());
     } catch(e) { console.error(e); }
   };
 
   const fetchDirectory = async () => {
     try {
-      const res = await fetch(`${BASE_URL}/users/`);
+      const res = await apiFetch(`/users/`);
       if (res.ok) setDirectory(await res.json());
     } catch(e) {}
   };
@@ -60,7 +60,7 @@ export default function ChatListScreen() {
       
       const checkFeed = async () => {
         try {
-          const res = await fetch(`${BASE_URL}/publications/latest_time`);
+          const res = await apiFetch(`/publications/latest_time`);
           const data = await res.json();
           if (data.latest_time) {
             const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
@@ -97,9 +97,8 @@ export default function ChatListScreen() {
     if (!isGroup && !targetUser) return;
     if (isGroup && !chatName) return;
     try {
-      const res = await fetch(`${BASE_URL}/chats/create`, {
+      const res = await apiFetch(`/chats/create`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: isGroup ? 'group' : 'private', name: chatName || targetUser, member_usernames: isGroup ? [user.username] : [user.username, targetUser] })
       });
       if (res.ok) {

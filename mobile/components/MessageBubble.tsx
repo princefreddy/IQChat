@@ -31,7 +31,7 @@ export default function MessageBubble({ message, isOwn, currentUserId, onReactio
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const match = message.content?.match(urlRegex);
     if (match && match[0] && !isHidden && !message.is_anonymous) {
-       fetch(`${BASE_URL}/utils/link-preview?url=${encodeURIComponent(match[0])}`)
+       apiFetch(`/utils/link-preview?url=${encodeURIComponent(match[0])}`)
          .then(r => r.json())
          .then(data => {
             if (data.title || data.image) setLinkPreview(data);

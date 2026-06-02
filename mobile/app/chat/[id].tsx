@@ -57,8 +57,8 @@ export default function ChatScreen() {
       if (res.ok) {
          setShowAddMember(false);
          setSelectedUsernames([]);
-         const cRes = await fetch(`${BASE_URL}/chats/${id}?user_id=${user.id}`);
-         if (cRes.ok) setChatInfo(await cRes.json());
+          const cRes = await apiFetch(`/chats/${id}?user_id=${user.id}`);
+          if (cRes.ok) setChatInfo(await cRes.json());
       }
     } catch (e) {}
   };
@@ -93,7 +93,7 @@ export default function ChatScreen() {
       { text: "Expulser", style: "destructive", onPress: async () => {
           const res = await apiFetch(`/chats/${id}/members/${targetId}`, { method: 'DELETE' });
           if (res.ok) {
-             const cRes = await fetch(`${BASE_URL}/chats/${id}?user_id=${user.id}`);
+             const cRes = await apiFetch(`/chats/${id}?user_id=${user.id}`);
              if (cRes.ok) setChatInfo(await cRes.json());
           }
       }}
@@ -107,7 +107,7 @@ export default function ChatScreen() {
         const parsed = auth.user;
         setUser(parsed);
         
-        fetch(`${BASE_URL}/chats/${id}?user_id=${parsed.id}`)
+        apiFetch(`/chats/${id}?user_id=${parsed.id}`)
           .then(r => r.json())
           .then(data => {
             setChatInfo(data);
@@ -166,10 +166,10 @@ export default function ChatScreen() {
         // Poll chat info every 30s to detect status changes (invite accepted, members updated, etc.)
         const chatPollInterval = setInterval(async () => {
           try {
-            const res = await fetch(`${BASE_URL}/chats/${id}?user_id=${parsed.id}`);
-            if (res.ok) {
-              const data = await res.json();
-              setChatInfo(data);
+             const res = await apiFetch(`/chats/${id}?user_id=${parsed.id}`);
+             if (res.ok) {
+               const data = await res.json();
+               setChatInfo(data);
             }
           } catch {}
         }, 30000);
@@ -215,10 +215,10 @@ export default function ChatScreen() {
 
   const handleAccept = async () => {
     try {
-      const res = await fetch(`${BASE_URL}/chats/${id}/accept?user_id=${user.id}`, { method: 'PATCH' });
+      const res = await apiFetch(`/chats/${id}/accept?user_id=${user.id}`, { method: 'PATCH' });
       if (res.ok) {
         // Re-fetch full chat data so input bar appears instantly
-        const chatRes = await fetch(`${BASE_URL}/chats/${id}?user_id=${user.id}`);
+        const chatRes = await apiFetch(`/chats/${id}?user_id=${user.id}`);
         if (chatRes.ok) {
           const data = await chatRes.json();
           setChatInfo(data);
