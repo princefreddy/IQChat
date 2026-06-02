@@ -387,8 +387,8 @@ export default function ChatScreen() {
         renderItem={({ item }) => (
           <MessageBubble 
             message={item} 
-            isOwn={item.sender_id === user.id} 
-            currentUserId={user.id}
+            isOwn={user ? item.sender_id === user.id : false} 
+            currentUserId={user?.id || ''}
             onReaction={(msgId: string, emoji: string) => handleReaction(msgId, emoji)}
             onReply={() => setReplyingTo(item)}
           />
