@@ -89,10 +89,10 @@ export default function Home() {
         }
       }
     } catch {
-      clearTimeout(wakingTimer);
-      setError("Le serveur de production met trop de temps à répondre. Réessayez dans quelques instants.");
-    }
-    setSubmitting(false);
+        clearTimeout(wakingTimer);
+        setError("Connexion en cours... Veuillez patienter quelques instants.");
+      }
+      setSubmitting(false);
     setWakingUp(false);
   };
 
@@ -283,7 +283,7 @@ export default function Home() {
             lineHeight: '1.5',
             textAlign: 'center'
           }}>
-            🔌 Le serveur de production (Render) est en cours de démarrage... Cela peut prendre jusqu'à une minute. Veuillez patienter.
+            Connexion en cours... Veuillez patienter quelques instants.
           </div>
         )}
       </div>

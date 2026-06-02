@@ -110,7 +110,7 @@ export default function AuthScreen() {
     } catch (e: any) {
       clearTimeout(wakingTimer);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Erreur Réseau', 'Le serveur de production met trop de temps à répondre. Réessayez dans quelques instants ou vérifiez votre connexion.');
+      Alert.alert('Connexion en cours', 'Veuillez patienter quelques instants.');
     }
     setSubmitting(false);
     setWakingUp(false);
@@ -273,7 +273,7 @@ export default function AuthScreen() {
           {wakingUp && (
             <View style={{ marginTop: 16, padding: 12, backgroundColor: 'rgba(197, 160, 59, 0.08)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(197, 160, 59, 0.2)' }}>
               <Text style={{ color: '#C5A03B', fontSize: 13, textAlign: 'center', lineHeight: 18 }}>
-                🔌 Le serveur de production (Render) est en cours de démarrage... Cela peut prendre jusqu'à une minute. Veuillez patienter.
+                Connexion en cours... Veuillez patienter quelques instants.
               </Text>
             </View>
           )}
