@@ -65,7 +65,7 @@ export async function fetchWithTimeout(
   url: string,
   options: RequestInit & { timeout?: number } = {}
 ): Promise<Response> {
-  const { timeout = 15000, ...fetchOptions } = options;
+  const { timeout = 30000, ...fetchOptions } = options;
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
 
@@ -89,7 +89,7 @@ export async function fetchWithRetry(
   url: string,
   options: RequestInit & { timeout?: number; retries?: number; delay?: number } = {}
 ): Promise<Response> {
-  const { retries = 3, delay = 3000, ...fetchOptions } = options;
+  const { retries = 5, delay = 2000, ...fetchOptions } = options;
   let lastError: any;
 
   for (let i = 0; i < retries; i++) {

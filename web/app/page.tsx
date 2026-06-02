@@ -46,9 +46,9 @@ export default function Home() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ identifier, password }),
-          timeout: 15000,
-          retries: 4,
-          delay: 2500
+          timeout: 30000,
+          retries: 6,
+          delay: 2000
         });
         const data = await res.json();
         clearTimeout(wakingTimer);
@@ -75,9 +75,9 @@ export default function Home() {
              password,
              avatar_url: `https://api.dicebear.com/7.x/adventurer/svg?seed=${username}`
           }),
-          timeout: 15000,
-          retries: 4,
-          delay: 2500
+          timeout: 30000,
+          retries: 6,
+          delay: 2000
         });
         const data = await res.json();
         clearTimeout(wakingTimer);

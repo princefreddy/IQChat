@@ -66,9 +66,9 @@ export default function AuthScreen() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ identifier, password }),
-          timeout: 15000,
-          retries: 4,
-          delay: 2500
+          timeout: 30000,
+          retries: 6,
+          delay: 2000
         });
         data = await res.json();
       } else {
@@ -91,9 +91,9 @@ export default function AuthScreen() {
             username, email, full_name: fullName, password,
             avatar_url: `https://api.dicebear.com/7.x/adventurer/svg?seed=${username}`
           }),
-          timeout: 15000,
-          retries: 4,
-          delay: 2500
+          timeout: 30000,
+          retries: 6,
+          delay: 2000
         });
         data = await res.json();
       }
