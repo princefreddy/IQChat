@@ -3,6 +3,65 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { uploadFile } from '@/lib/api';
 import { useToast } from './ToastProvider';
 
+function mergeBuffers(channelBuffer: Float32Array[], recordingLength: number): Float32Array {
+  const result = new Float32Array(recordingLength);
+  let offset = 0;
+  for (let i = 0; i < channelBuffer.length; i++) {
+    const buffer = channelBuffer[i];
+    result.set(buffer, offset);
+    offset += buffer.length;
+  }
+  return result;
+}
+
+function encodeWAV(samples: Float32Array, sampleRate: number): Blob {
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+
+  const writeString = (view: DataView, offset: number, string: string) => {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
+  };
+
+  /* RIFF identifier */
+  writeString(view, 0, 'RIFF');
+  /* file length */
+  view.setUint32(4, 36 + samples.length * 2, true);
+  /* RIFF type */
+  writeString(view, 8, 'WAVE');
+  /* format chunk identifier */
+  writeString(view, 12, 'fmt ');
+  /* format chunk length */
+  view.setUint32(16, 16, true);
+  /* sample format (raw) */
+  view.setUint16(20, 1, true);
+  /* channel count (mono) */
+  view.setUint16(22, 1, true);
+  /* sample rate */
+  view.setUint32(24, sampleRate, true);
+  /* byte rate (sample rate * block align) */
+  view.setUint32(28, sampleRate * 2, true);
+  /* block align (channel count * bytes per sample) */
+  view.setUint16(32, 2, true);
+  /* bits per sample */
+  view.setUint16(34, 16, true);
+  /* data chunk identifier */
+  writeString(view, 36, 'data');
+  /* data chunk length */
+  view.setUint32(40, samples.length * 2, true);
+
+  // Write samples
+  let index = 44;
+  for (let i = 0; i < samples.length; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(index, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    index += 2;
+  }
+
+  return new Blob([view], { type: 'audio/wav' });
+}
+
 export default function MessageInput({ onSend, onTyping, replyingTo, onCancelReply }: { onSend: (data: any) => void; onTyping?: (isTyping: boolean) => void; replyingTo?: any; onCancelReply?: () => void }) {
   const [content, setContent] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
@@ -33,65 +92,115 @@ export default function MessageInput({ onSend, onTyping, replyingTo, onCancelRep
   // Voice recording state
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const recordingDataRef = useRef<{ leftChannel: Float32Array[]; recordingLength: number }>({ leftChannel: [], recordingLength: 0 });
+  const sampleRateRef = useRef<number>(44100);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
+      streamRef.current = stream;
 
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      const audioContext = new AudioContextClass();
+      audioContextRef.current = audioContext;
+      sampleRateRef.current = audioContext.sampleRate;
+
+      const source = audioContext.createMediaStreamSource(stream);
+      // Create a ScriptProcessorNode with buffer size 4096, 1 input channel, 1 output channel
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      processorRef.current = processor;
+
+      recordingDataRef.current = { leftChannel: [], recordingLength: 0 };
+
+      processor.onaudioprocess = (e) => {
+        const inputData = e.inputBuffer.getChannelData(0);
+        recordingDataRef.current.leftChannel.push(new Float32Array(inputData));
+        recordingDataRef.current.recordingLength += inputData.length;
       };
 
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        const file = new File([audioBlob], "voice_message.webm", { type: 'audio/webm' });
-        
-        setUploadingFile(true);
-        try {
-          const result = await uploadFile(file);
-          setPendingFile({
-            url: result.url,
-            file_type: 'audio',
-            file_name: 'voice_message.webm',
-          });
-          if (!content.trim()) setContent('🎤 Message vocal');
-        } catch (err: any) {
-          showToast(err.message || "Erreur d'upload vocal", 'error');
-        }
-        setUploadingFile(false);
-      };
+      source.connect(processor);
+      processor.connect(audioContext.destination);
 
-      mediaRecorder.start();
       setIsRecording(true);
       setRecordingDuration(0);
       timerRef.current = setInterval(() => setRecordingDuration(prev => prev + 1), 1000);
     } catch (error) {
+      console.error('Failed to start recording:', error);
       showToast("Impossible d'accéder au microphone", 'error');
     }
   };
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
-      if (timerRef.current) clearInterval(timerRef.current);
+  const stopRecording = async () => {
+    if (!isRecording) return;
+    setIsRecording(false);
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    // Disconnect and clean up Audio Nodes
+    if (processorRef.current) {
+      processorRef.current.disconnect();
+      processorRef.current.onaudioprocess = null;
+      processorRef.current = null;
     }
+    if (audioContextRef.current) {
+      if (audioContextRef.current.state !== 'closed') {
+        await audioContextRef.current.close().catch(() => {});
+      }
+      audioContextRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+
+    const { leftChannel, recordingLength } = recordingDataRef.current;
+    if (recordingLength === 0) {
+      showToast("Aucun audio enregistré", 'error');
+      return;
+    }
+
+    setUploadingFile(true);
+    try {
+      const sampleRate = sampleRateRef.current;
+      const mergedSamples = mergeBuffers(leftChannel, recordingLength);
+      const wavBlob = encodeWAV(mergedSamples, sampleRate);
+      const file = new File([wavBlob], "voice_message.wav", { type: 'audio/wav' });
+
+      const result = await uploadFile(file);
+      setPendingFile({
+        url: result.url,
+        file_type: 'audio',
+        file_name: 'voice_message.wav',
+      });
+      if (!content.trim()) setContent('🎤 Message vocal');
+    } catch (err: any) {
+      showToast(err.message || "Erreur d'upload vocal", 'error');
+    }
+    setUploadingFile(false);
   };
 
   const cancelRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.onstop = null; // Prevent upload
-      mediaRecorderRef.current.stop();
+    if (isRecording) {
       setIsRecording(false);
-      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
       if (timerRef.current) clearInterval(timerRef.current);
+
+      if (processorRef.current) {
+        processorRef.current.disconnect();
+        processorRef.current.onaudioprocess = null;
+        processorRef.current = null;
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close().catch(() => {});
+        audioContextRef.current = null;
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+      recordingDataRef.current = { leftChannel: [], recordingLength: 0 };
     }
   };
 

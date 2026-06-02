@@ -11,6 +11,7 @@ import mimetypes
 mimetypes.add_type('audio/mp4', '.m4a')
 mimetypes.add_type('audio/mpeg', '.mp3')
 mimetypes.add_type('video/mp4', '.mp4')
+mimetypes.add_type('audio/wav', '.wav')
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
