@@ -1,131 +1,181 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
-import { apiFetch } from '../../lib/api';
+import React, { useState, useEffect } from "react";
+import { View, Text, TouchableOpacity } from "react-native";
+import { Feather } from "@expo/vector-icons";
+import { apiFetch } from "../../lib/api";
 
-export default function TicTacToe({ message, currentUserId }: { message: any, currentUserId: string }) {
+export default function TicTacToe({ message, currentUserId }: { message: any; currentUserId: string }) {
   const [state, setState] = useState<any>(null);
 
   useEffect(() => {
     try {
-      if (typeof message.content === 'string' && message.content.startsWith('{')) {
+      if (typeof message.content === "string" && message.content.startsWith("{")) {
         setState(JSON.parse(message.content));
       }
-    } catch(e) {}
+    } catch {}
   }, [message.content]);
 
-  if (!state) return <Text style={{ color: 'red' }}>Invalid game state</Text>;
+  if (!state) return <Text style={{ color: "#f87171", fontSize: 12 }}>État de jeu invalide</Text>;
+
+  const playerX = state.player_x || message.sender_id;
+  const playerO = state.player_o;
+  const amIX = currentUserId === playerX;
+  const amIO = playerO ? currentUserId === playerO : false;
+  const isParticipant = amIX || amIO;
 
   const handleCellClick = async (index: number) => {
-    if (state.status !== 'playing') return;
-    if (state.board[index] !== '') return;
-    
-    let player_x = state.player_x || message.sender_id;
-    let player_o = state.player_o;
-    
-    if (!player_o && currentUserId !== player_x) {
-      player_o = currentUserId;
-    }
+    if (state.status !== "playing") return;
+    if (state.board[index] !== "") return;
 
-    const amIX = currentUserId === player_x;
-    const amIO = currentUserId === player_o;
-    
-    if (state.current_turn === 'x' && !amIX) return;
-    if (state.current_turn === 'o' && !amIO) return;
-    
+    let nextX = playerX;
+    let nextO = playerO;
+    if (!nextO && currentUserId !== nextX) nextO = currentUserId;
+
+    const nowX = currentUserId === nextX;
+    const nowO = currentUserId === nextO;
+
+    if (state.current_turn === "x" && !nowX) return;
+    if (state.current_turn === "o" && !nowO) return;
+
     const newBoard = [...state.board];
     newBoard[index] = state.current_turn;
-    
+
     const lines = [
-      [0, 1, 2], [3, 4, 5], [6, 7, 8],
-      [0, 3, 6], [1, 4, 7], [2, 5, 8],
-      [0, 4, 8], [2, 4, 6]
+      [0, 1, 2],
+      [3, 4, 5],
+      [6, 7, 8],
+      [0, 3, 6],
+      [1, 4, 7],
+      [2, 5, 8],
+      [0, 4, 8],
+      [2, 4, 6],
     ];
     let winner = null;
-    for (let line of lines) {
-      const [a, b, c] = line;
+    for (const [a, b, c] of lines) {
       if (newBoard[a] && newBoard[a] === newBoard[b] && newBoard[a] === newBoard[c]) {
         winner = newBoard[a];
         break;
       }
     }
-    
-    let status = 'playing';
-    if (winner) status = 'won';
-    else if (!newBoard.includes('')) status = 'draw';
-    
+
+    let status = "playing";
+    if (winner) status = "won";
+    else if (!newBoard.includes("")) status = "draw";
+
     const newState = {
       board: newBoard,
-      player_x,
-      player_o,
-      current_turn: state.current_turn === 'x' ? 'o' : 'x',
+      player_x: nextX,
+      player_o: nextO,
+      current_turn: state.current_turn === "x" ? "o" : "x",
       winner,
-      status
+      status,
     };
-    
+
     setState(newState);
-    
+
     try {
       await apiFetch(`/messages/${message.id}/content`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: JSON.stringify(newState) })
+        method: "PATCH",
+        body: JSON.stringify({ content: JSON.stringify(newState) }),
       });
-    } catch(e) {}
+    } catch {}
   };
 
   const handleQuit = async () => {
-    if (state.status !== 'playing') return;
-    const newState = { ...state, status: 'cancelled' };
+    if (state.status !== "playing" || !isParticipant) return;
+    const newState = { ...state, status: "cancelled" };
     setState(newState);
     try {
       await apiFetch(`/messages/${message.id}/content`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: JSON.stringify(newState) })
+        method: "PATCH",
+        body: JSON.stringify({ content: JSON.stringify(newState) }),
       });
-    } catch(e) {}
+    } catch {}
+  };
+
+  const renderMark = (mark: string, size = 24) => {
+    if (mark === "x") return <Feather name="x" size={size} color="#f87171" />;
+    if (mark === "o") {
+      return (
+        <View
+          style={{
+            width: size - 4,
+            height: size - 4,
+            borderRadius: (size - 4) / 2,
+            borderWidth: 2.5,
+            borderColor: "#38bdf8",
+          }}
+        />
+      );
+    }
+    return null;
   };
 
   return (
-    <View style={{ marginTop: 8, backgroundColor: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#333', width: 220 }}>
-      <Text style={{ textAlign: 'center', marginBottom: 8, color: '#D4AF37', fontWeight: 'bold' }}>🎮 Morpion</Text>
-      
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', width: 196, justifyContent: 'center' }}>
+    <View style={{ marginTop: 6, backgroundColor: "rgba(10,17,40,0.65)", padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", width: 216 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 8 }}>
+        <Feather name="grid" size={14} color="#C5A03B" />
+        <Text style={{ color: "#C5A03B", fontWeight: "700", fontSize: 13 }}>Morpion</Text>
+      </View>
+
+      <View style={{ flexDirection: "row", flexWrap: "wrap", width: 192, justifyContent: "center" }}>
         {state.board.map((cell: string, i: number) => (
-          <TouchableOpacity 
-            key={i} 
+          <TouchableOpacity
+            key={i}
             onPress={() => handleCellClick(i)}
-            activeOpacity={0.7}
-            style={{ 
-              width: 60,
-              height: 60, 
-              backgroundColor: 'rgba(255,255,255,0.05)', 
-              justifyContent: 'center', 
-              alignItems: 'center', 
+            activeOpacity={0.75}
+            style={{
+              width: 58,
+              height: 58,
+              backgroundColor: "rgba(255,255,255,0.05)",
+              justifyContent: "center",
+              alignItems: "center",
               margin: 2,
-              borderRadius: 4,
+              borderRadius: 6,
               borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.1)'
+              borderColor: "rgba(255,255,255,0.1)",
             }}
           >
-            <Text style={{ fontSize: 28 }}>{cell === 'x' ? '❌' : cell === 'o' ? '⭕' : ''}</Text>
+            {renderMark(cell, 26)}
           </TouchableOpacity>
         ))}
       </View>
-      
-      <View style={{ marginTop: 8, alignItems: 'center' }}>
-        {state.status === 'playing' && <Text style={{ color: '#888', fontSize: 12 }}>C'est au tour de {state.current_turn === 'x' ? '❌' : '⭕'}</Text>}
-        {state.status === 'won' && <Text style={{ color: '#4ade80', fontWeight: 'bold' }}>{state.winner === 'x' ? '❌' : '⭕'} a gagné !</Text>}
-        {state.status === 'draw' && <Text style={{ color: '#888' }}>Match nul !</Text>}
-        {state.status === 'cancelled' && <Text style={{ color: '#ef4444' }}>Partie abandonnée</Text>}
+
+      <View style={{ marginTop: 8, alignItems: "center" }}>
+        {state.status === "playing" && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Text style={{ color: "#94A3B8", fontSize: 12 }}>Tour de</Text>
+            {renderMark(state.current_turn, 15)}
+          </View>
+        )}
+        {state.status === "won" && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            {renderMark(state.winner, 15)}
+            <Text style={{ color: "#4ade80", fontWeight: "700", fontSize: 12 }}>a gagné !</Text>
+          </View>
+        )}
+        {state.status === "draw" && <Text style={{ color: "#94A3B8", fontSize: 12 }}>Match nul</Text>}
+        {state.status === "cancelled" && <Text style={{ color: "#ef4444", fontSize: 12 }}>Partie abandonnée</Text>}
       </View>
-      
-      {state.status === 'playing' && (
-        <TouchableOpacity 
-          onPress={handleQuit} 
-          style={{ width: '100%', marginTop: 8, padding: 8, backgroundColor: 'rgba(239,68,68,0.2)', borderWidth: 1, borderColor: '#ef4444', borderRadius: 6, alignItems: 'center' }}
+
+      {state.status === "playing" && isParticipant && (
+        <TouchableOpacity
+          onPress={handleQuit}
+          style={{
+            width: "100%",
+            marginTop: 8,
+            paddingVertical: 7,
+            backgroundColor: "rgba(239,68,68,0.15)",
+            borderWidth: 1,
+            borderColor: "rgba(239,68,68,0.5)",
+            borderRadius: 6,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+          }}
         >
-          <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: 'bold' }}>🛑 Abandonner</Text>
+          <Feather name="flag" size={12} color="#f87171" />
+          <Text style={{ color: "#f87171", fontSize: 12, fontWeight: "600" }}>Abandonner</Text>
         </TouchableOpacity>
       )}
     </View>

@@ -1,17 +1,25 @@
 /**
- * Centralized API client for IQChat.
- * Handles base URL, JWT token injection, and error handling.
+ * Centralized API client for IQChat Web.
+ * Handles base URL, JWT token injection, session cache cleanup, and safe retries.
  */
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-const WS_BASE = BASE_URL.replace(/^http/, 'ws');
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const WS_BASE = BASE_URL.replace(/^http/, "ws");
+
+export const chatMemoryCache: Record<string, { chatInfo: any; messages: any[] }> = {};
+
+export function clearChatMemoryCache() {
+  for (const key of Object.keys(chatMemoryCache)) {
+    delete chatMemoryCache[key];
+  }
+}
 
 /**
  * Get the stored auth data (token + user) from localStorage.
  */
 export function getAuthData(): { token: string; user: any } | null {
-  if (typeof window === 'undefined') return null;
-  const raw = localStorage.getItem('iqchat_auth');
+  if (typeof window === "undefined") return null;
+  const raw = localStorage.getItem("iqchat_auth");
   if (!raw) return null;
   try {
     return JSON.parse(raw);
@@ -21,20 +29,22 @@ export function getAuthData(): { token: string; user: any } | null {
 }
 
 /**
- * Save auth data after login/register.
+ * Save auth data after login/register/profile update.
  */
 export function setAuthData(data: { token: string; user: any }) {
-  localStorage.setItem('iqchat_auth', JSON.stringify(data));
-  // Also keep legacy key for backward compat
-  localStorage.setItem('iqchat_user', JSON.stringify(data.user));
+  localStorage.setItem("iqchat_auth", JSON.stringify(data));
+  localStorage.setItem("iqchat_user", JSON.stringify(data.user));
 }
 
 /**
- * Clear all auth data on logout.
+ * Clear all auth data and in-memory caches on logout.
  */
 export function clearAuthData() {
-  localStorage.removeItem('iqchat_auth');
-  localStorage.removeItem('iqchat_user');
+  clearChatMemoryCache();
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("iqchat_auth");
+    localStorage.removeItem("iqchat_user");
+  }
 }
 
 /**
@@ -42,19 +52,15 @@ export function clearAuthData() {
  */
 function getHeaders(extraHeaders?: Record<string, string>): Record<string, string> {
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
     ...extraHeaders,
   };
-  
+
   const auth = getAuthData();
   if (auth?.token) {
-    headers['Authorization'] = `Bearer ${auth.token}`;
+    headers["Authorization"] = `Bearer ${auth.token}`;
   }
-  // Legacy fallback
-  if (auth?.user?.id) {
-    headers['x-user-id'] = auth.user.id;
-  }
-  
+
   return headers;
 }
 
@@ -83,13 +89,15 @@ export async function fetchWithTimeout(
 }
 
 /**
- * Fetch helper with retries and exponential/fixed backoff.
+ * Fetch helper with retries (safe default: retries only idempotent GET/HEAD requests unless explicitly requested).
  */
 export async function fetchWithRetry(
   url: string,
   options: RequestInit & { timeout?: number; retries?: number; delay?: number } = {}
 ): Promise<Response> {
-  const { retries = 5, delay = 2000, ...fetchOptions } = options;
+  const method = (options.method || "GET").toUpperCase();
+  const defaultRetries = method === "GET" || method === "HEAD" ? 3 : 1;
+  const { retries = defaultRetries, delay = 1500, ...fetchOptions } = options;
   let lastError: any;
 
   for (let i = 0; i < retries; i++) {
@@ -97,9 +105,7 @@ export async function fetchWithRetry(
       return await fetchWithTimeout(url, fetchOptions);
     } catch (err: any) {
       lastError = err;
-      // If it's a timeout or network request failed, retry after delay
       if (i < retries - 1) {
-        console.log(`[API] Connection attempt ${i + 1} failed. Retrying in ${delay}ms...`, err.message || err);
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
@@ -111,12 +117,12 @@ export async function fetchWithRetry(
  * Make an authenticated API request.
  */
 export async function apiFetch(
-  path: string, 
+  path: string,
   options: RequestInit & { timeout?: number; retries?: number; delay?: number } = {}
 ): Promise<Response> {
   const url = `${BASE_URL}${path}`;
   const headers = getHeaders(options.headers as Record<string, string>);
-  
+
   return fetchWithRetry(url, {
     ...options,
     headers,
@@ -133,28 +139,25 @@ export async function uploadFile(file: File): Promise<{
   original_name: string;
 }> {
   const formData = new FormData();
-  formData.append('file', file);
-  
+  formData.append("file", file);
+
   const auth = getAuthData();
   const headers: Record<string, string> = {};
   if (auth?.token) {
-    headers['Authorization'] = `Bearer ${auth.token}`;
+    headers["Authorization"] = `Bearer ${auth.token}`;
   }
-  if (auth?.user?.id) {
-    headers['x-user-id'] = auth.user.id;
-  }
-  
+
   const res = await fetch(`${BASE_URL}/messages/upload`, {
-    method: 'POST',
+    method: "POST",
     headers,
     body: formData,
   });
-  
+
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.detail || 'Upload failed');
+    throw new Error(err.detail || "Échec de l'envoi du fichier");
   }
-  
+
   return res.json();
 }
 
@@ -162,14 +165,26 @@ export async function uploadFile(file: File): Promise<{
  * Get the WebSocket URL for a chat.
  */
 export function getChatWsUrl(chatId: string, userId: string): string {
-  return `${WS_BASE}/ws/chat/${chatId}?user_id=${userId}`;
+  const auth = getAuthData();
+  const tokenParam = auth?.token ? `&token=${encodeURIComponent(auth.token)}` : "";
+  return `${WS_BASE}/ws/chat/${chatId}?user_id=${encodeURIComponent(userId)}${tokenParam}`;
+}
+
+/**
+ * Get the global user WebSocket URL for presence & real-time sidebar updates.
+ */
+export function getUserWsUrl(userId: string): string {
+  const auth = getAuthData();
+  const tokenParam = auth?.token ? `&token=${encodeURIComponent(auth.token)}` : "";
+  return `${WS_BASE}/ws/user?user_id=${encodeURIComponent(userId)}${tokenParam}`;
 }
 
 /**
  * Get the full URL for an uploaded file.
  */
 export function getUploadUrl(path: string): string {
-  if (path.startsWith('http')) return path;
+  if (!path) return "";
+  if (path.startsWith("http")) return path;
   return `${BASE_URL}${path}`;
 }
 

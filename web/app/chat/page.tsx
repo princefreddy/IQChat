@@ -1,39 +1,80 @@
-"use client"
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import ChatList from '@/components/ChatList';
-import ChatWindow from '@/components/ChatWindow';
-import PublicationsFeed from '@/components/PublicationsFeed';
-import ToastProvider from '@/components/ToastProvider';
-import { getAuthData, BASE_URL } from '@/lib/api';
+"use client";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import ChatList from "@/components/ChatList";
+import ChatWindow from "@/components/ChatWindow";
+import PublicationsFeed from "@/components/PublicationsFeed";
+import ToastProvider from "@/components/ToastProvider";
+import Icon from "@/components/Icon";
+import { getAuthData, apiFetch, getUserWsUrl } from "@/lib/api";
 
 export default function ChatPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<'chats' | 'feed' | 'announcement'>('chats');
+  const [activeView, setActiveView] = useState<"chats" | "feed" | "announcement">("chats");
   const [hasNewFeed, setHasNewFeed] = useState(false);
+  const [chatsRefreshKey, setChatsRefreshKey] = useState(0);
 
   useEffect(() => {
     const auth = getAuthData();
     if (!auth?.token) {
-      router.push('/');
+      router.push("/");
     } else {
       setUser(auth.user);
+      // Refresh user profile/settings from server silently
+      apiFetch("/users/me")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((freshUser) => {
+          if (freshUser) setUser(freshUser);
+        })
+        .catch(() => {});
     }
   }, [router]);
+
+  // Global presence & instant sidebar updates WebSocket
+  useEffect(() => {
+    if (!user?.id) return;
+    let ws: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let disposed = false;
+
+    const connect = () => {
+      if (disposed) return;
+      ws = new WebSocket(getUserWsUrl(user.id));
+      ws.onmessage = (ev) => {
+        try {
+          const data = JSON.parse(ev.data);
+          if (data.event === "chats_updated" || data.event === "presence") {
+            setChatsRefreshKey((k) => k + 1);
+          }
+        } catch {}
+      };
+      ws.onclose = () => {
+        if (!disposed) reconnectTimer = setTimeout(connect, 4000);
+      };
+    };
+
+    connect();
+    return () => {
+      disposed = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      ws?.close();
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user) return;
     const checkFeed = async () => {
       try {
-        const res = await fetch(`${BASE_URL}/publications/latest_time`);
+        const res = await apiFetch("/publications/latest_time");
+        if (!res.ok) return;
         const data = await res.json();
         if (data.latest_time) {
-           const lastSeen = localStorage.getItem('iqchat_last_seen_feed');
-           if (!lastSeen || new Date(data.latest_time).getTime() > new Date(lastSeen).getTime()) {
-              if (activeView !== 'feed') setHasNewFeed(true);
-           }
+          const lastSeen = localStorage.getItem("iqchat_last_seen_feed");
+          if (!lastSeen || new Date(data.latest_time).getTime() > new Date(lastSeen).getTime()) {
+            if (activeView !== "feed") setHasNewFeed(true);
+          }
         }
       } catch {}
     };
@@ -43,116 +84,260 @@ export default function ChatPage() {
   }, [user, activeView]);
 
   const handleSwitchToFeed = () => {
-     setActiveView('feed');
-     setHasNewFeed(false);
-     localStorage.setItem('iqchat_last_seen_feed', new Date().toISOString());
+    setActiveView("feed");
+    setHasNewFeed(false);
+    localStorage.setItem("iqchat_last_seen_feed", new Date().toISOString());
   };
 
-  // Keyboard shortcut: Escape to go back to chats
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (activeView === 'feed') setActiveView('chats');
+      if (e.key === "Escape" && activeView === "feed") {
+        setActiveView("chats");
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [activeView]);
 
   if (!user) return null;
 
-  const isShowSidebar = !activeChatId && activeView === 'chats';
-  const isShowChat = !!activeChatId || activeView === 'feed';
+  const isShowSidebar = !activeChatId && activeView === "chats";
+  const fontSizeClass = `font-${user.font_size || "normal"}`;
 
   return (
     <ToastProvider>
-      <div className={`app-container ${isShowSidebar ? 'show-sidebar' : 'show-chat'}`}>
-        <div className="sidebar glass-panel animate-slide-up" style={{ display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', padding: '12px', gap: '8px', borderBottom: '1px solid var(--border-glass)', flexWrap: 'wrap' }}>
-            <button 
-              onClick={() => {
-                setActiveView('chats');
+      <div className={`app-container ${fontSizeClass} ${isShowSidebar ? "show-sidebar" : "show-chat"}`}>
+        <div className="sidebar glass-panel animate-slide-up" style={{ display: "flex", flexDirection: "column" }}>
+          <div
+            style={{
+              display: "flex",
+              padding: "12px",
+              gap: "6px",
+              borderBottom: "1px solid var(--border-glass)",
+              flexWrap: "wrap",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setActiveView("chats")}
+              style={{
+                flex: 1,
+                minWidth: "90px",
+                padding: "8px 10px",
+                background: activeView === "chats" ? "var(--accent-royal)" : "transparent",
+                color: "#FFF",
+                border: activeView === "chats" ? "1px solid transparent" : "1px solid var(--border-glass)",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontWeight: 600,
+                fontSize: "13px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
               }}
-              style={{ flex: 1, minWidth: '80px', padding: '8px', background: activeView === 'chats' ? 'var(--accent-royal)' : 'transparent', color: '#FFF', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
             >
-              Discussions
+              <Icon name="message-square" size={14} />
+              <span>Discussions</span>
             </button>
-            <button 
+
+            <button
+              type="button"
               onClick={handleSwitchToFeed}
-              style={{ flex: 1, minWidth: '80px', position: 'relative', padding: '8px', background: activeView === 'feed' ? 'var(--accent-gold)' : 'transparent', color: activeView === 'feed' ? '#000' : '#FFF', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
+              style={{
+                flex: 1,
+                minWidth: "90px",
+                position: "relative",
+                padding: "8px 10px",
+                background: activeView === "feed" ? "var(--accent-gold)" : "transparent",
+                color: activeView === "feed" ? "#0A1128" : "#FFF",
+                border: activeView === "feed" ? "1px solid var(--accent-gold)" : "1px solid var(--border-glass)",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontWeight: 600,
+                fontSize: "13px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
+              }}
             >
-              Fil Public
-              {hasNewFeed && <div style={{ position: 'absolute', top: '4px', right: '4px', width: '8px', height: '8px', backgroundColor: '#ff4d4f', borderRadius: '4px' }} />}
+              <Icon name="globe" size={14} color={activeView === "feed" ? "#0A1128" : "currentColor"} />
+              <span>Fil Public</span>
+              {hasNewFeed && (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: "5px",
+                    right: "6px",
+                    width: "7px",
+                    height: "7px",
+                    backgroundColor: "#ef4444",
+                    borderRadius: "4px",
+                  }}
+                />
+              )}
             </button>
-            {user.username === 'admin' && (
-              <button 
+
+            {user.username === "admin" && (
+              <button
+                type="button"
                 onClick={() => {
-                  setActiveView('announcement');
+                  setActiveView("announcement");
                   setActiveChatId(null);
                 }}
-                style={{ flex: 1, minWidth: '80px', padding: '8px', background: activeView === 'announcement' ? 'rgba(197, 160, 59, 0.2)' : 'transparent', color: 'var(--accent-gold)', border: '1px solid var(--accent-gold)', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
+                style={{
+                  flex: 1,
+                  minWidth: "90px",
+                  padding: "8px 10px",
+                  background: activeView === "announcement" ? "rgba(197, 160, 59, 0.2)" : "transparent",
+                  color: "var(--accent-gold)",
+                  border: "1px solid rgba(197, 160, 59, 0.5)",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  fontSize: "13px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "6px",
+                }}
               >
-                📢 Annonce
+                <Icon name="megaphone" size={14} color="var(--accent-gold)" />
+                <span>Annonce</span>
               </button>
             )}
           </div>
-          <div style={{ flex: 1, overflow: 'hidden' }} className="animate-fade-in">
-            <div style={{ display: activeView === 'chats' ? 'flex' : 'none', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-              <ChatList user={user} activeChatId={activeChatId} onSelectChat={setActiveChatId} />
+
+          <div style={{ flex: 1, overflow: "hidden" }} className="animate-fade-in">
+            <div style={{ display: activeView === "chats" ? "flex" : "none", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+              <ChatList
+                user={user}
+                activeChatId={activeChatId}
+                onSelectChat={setActiveChatId}
+                onUserUpdate={setUser}
+                refreshSignal={chatsRefreshKey}
+              />
             </div>
-            <div style={{ display: activeView === 'feed' ? 'block' : 'none', padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-              Découvrez les dernières publications de la communauté sur le Fil Public.
+            <div style={{ display: activeView === "feed" ? "block" : "none", padding: "24px", textAlign: "center", color: "var(--text-secondary)", fontSize: "13px" }}>
+              Parcourez et partagez des publications avec la communauté sur le Fil Public.
             </div>
+            {user.username === "admin" && (
+              <div style={{ display: activeView === "announcement" ? "block" : "none", padding: "24px", textAlign: "center", color: "var(--text-secondary)", fontSize: "13px" }}>
+                Diffusez une annonce officielle à l&apos;ensemble des membres inscrits.
+              </div>
+            )}
           </div>
         </div>
-        <div className="chat-main glass-panel animate-slide-up" style={{ animationDelay: '0.1s' }}>
-          {/* Mobile Only Header Bar for Back Navigation */}
-          {(activeChatId || activeView === 'feed') && (
-            <div 
-              style={{ 
-                padding: '8px 16px', 
-                borderBottom: '1px solid var(--border-glass)', 
-                background: 'rgba(0,0,0,0.15)',
-                display: 'none', // Overridden by media query in globals.css
-                alignItems: 'center'
-              }} 
+
+        <div className="chat-main glass-panel animate-slide-up" style={{ animationDelay: "0.08s" }}>
+          {(activeChatId || activeView === "feed" || activeView === "announcement") && (
+            <div
+              style={{
+                padding: "8px 16px",
+                borderBottom: "1px solid var(--border-glass)",
+                background: "rgba(0,0,0,0.15)",
+                display: "none",
+                alignItems: "center",
+              }}
               className="mobile-back-btn"
             >
-              <button 
+              <button
+                type="button"
                 onClick={() => {
                   setActiveChatId(null);
-                  setActiveView('chats');
-                }} 
+                  setActiveView("chats");
+                }}
                 style={{
-                  background: 'transparent',
-                  border: '1px solid var(--border-glass)',
-                  color: 'var(--accent-gold)',
-                  padding: '6px 14px',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontWeight: 'bold',
-                  fontSize: '14px'
+                  background: "transparent",
+                  border: "1px solid var(--border-glass)",
+                  color: "var(--accent-gold)",
+                  padding: "6px 12px",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  fontSize: "13px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
                 }}
               >
-                ← Retour aux Discussions
+                <Icon name="arrow-left" size={15} color="var(--accent-gold)" />
+                <span>Discussions</span>
               </button>
             </div>
           )}
-          <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', flex: 1, height: '100%', overflow: 'hidden' }}>
-            <div style={{ display: activeView === 'feed' ? 'flex' : 'none', flexDirection: 'column', flex: 1, height: '100%', overflow: 'hidden' }}>
-              <PublicationsFeed user={user} />
+
+          <div className="animate-fade-in" style={{ display: "flex", flexDirection: "column", flex: 1, height: "100%", overflow: "hidden" }}>
+            <div style={{ display: activeView === "feed" ? "flex" : "none", flexDirection: "column", flex: 1, height: "100%", overflow: "hidden" }}>
+              <PublicationsFeed
+                user={user}
+                onStartChat={(chatId: string) => {
+                  setActiveChatId(chatId);
+                  setActiveView("chats");
+                  setChatsRefreshKey((k) => k + 1);
+                }}
+              />
             </div>
-            <div style={{ display: (activeView === 'chats' && activeChatId) ? 'flex' : 'none', flexDirection: 'column', flex: 1, height: '100%', overflow: 'hidden' }}>
-              {activeChatId && <ChatWindow user={user} chatId={activeChatId} />}
+
+            <div style={{ display: activeView === "chats" && activeChatId ? "flex" : "none", flexDirection: "column", flex: 1, height: "100%", overflow: "hidden" }}>
+              {activeChatId && (
+                <ChatWindow
+                  user={user}
+                  chatId={activeChatId}
+                  onChatLeft={() => {
+                    setActiveChatId(null);
+                    setChatsRefreshKey((k) => k + 1);
+                  }}
+                  onChatsUpdated={() => setChatsRefreshKey((k) => k + 1)}
+                />
+              )}
             </div>
-            <div style={{ display: (activeView === 'chats' && !activeChatId) ? 'flex' : 'none', flex: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '12px', color: 'var(--text-secondary)', height: '100%' }}>
-              <div style={{ fontSize: '48px', opacity: 0.3 }}>💬</div>
-              <div>Sélectionnez une conversation ou passez sur le Fil Public.</div>
-              <div style={{ fontSize: '12px', opacity: 0.5 }}>Appuyez sur Escape pour revenir aux discussions</div>
+
+            <div
+              style={{
+                display: activeView === "chats" && !activeChatId ? "flex" : "none",
+                flex: 1,
+                alignItems: "center",
+                justifyContent: "center",
+                flexDirection: "column",
+                gap: "12px",
+                color: "var(--text-secondary)",
+                height: "100%",
+              }}
+            >
+              <div
+                style={{
+                  width: "64px",
+                  height: "64px",
+                  borderRadius: "32px",
+                  background: "rgba(197, 160, 59, 0.08)",
+                  border: "1px solid rgba(197, 160, 59, 0.25)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Icon name="message-square" size={28} color="var(--accent-gold)" />
+              </div>
+              <div style={{ fontSize: "15px", color: "var(--text-primary)", fontWeight: 500 }}>Sélectionnez une conversation</div>
+              <div style={{ fontSize: "13px", opacity: 0.7 }}>Ou explorez l&apos;Annuaire et le Fil Public à gauche.</div>
             </div>
-            {user.username === 'admin' && (
-              <div style={{ display: activeView === 'announcement' ? 'flex' : 'none', flexDirection: 'column', flex: 1, height: '100%', overflow: 'hidden', padding: '40px', alignItems: 'center', justifyContent: 'center' }}>
-                <AnnouncementComposer />
+
+            {user.username === "admin" && (
+              <div
+                style={{
+                  display: activeView === "announcement" ? "flex" : "none",
+                  flexDirection: "column",
+                  flex: 1,
+                  height: "100%",
+                  overflow: "auto",
+                  padding: "32px",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <AnnouncementComposer onSent={() => setChatsRefreshKey((k) => k + 1)} />
               </div>
             )}
           </div>
@@ -162,82 +347,143 @@ export default function ChatPage() {
   );
 }
 
-function AnnouncementComposer() {
-  const [content, setContent] = useState('');
+function AnnouncementComposer({ onSent }: { onSent?: () => void }) {
+  const [content, setContent] = useState("");
   const [sending, setSending] = useState(false);
   const [successCount, setSuccessCount] = useState<number | null>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   const handleBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim()) return;
     setSending(true);
-    setError('');
+    setError("");
     setSuccessCount(null);
     try {
-      const auth = getAuthData();
-      const res = await fetch(`${BASE_URL}/chats/announcement`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${auth?.token}`
-        },
-        body: JSON.stringify({ content })
+      const res = await apiFetch("/chats/announcement", {
+        method: "POST",
+        body: JSON.stringify({ content: content.trim() }),
       });
       if (res.ok) {
         const data = await res.json();
         setSuccessCount(data.sent_count);
-        setContent('');
+        setContent("");
+        onSent?.();
       } else {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         setError(data.detail || "Échec de l'envoi de l'annonce.");
       }
-    } catch (err) {
+    } catch {
       setError("Erreur réseau lors de l'envoi.");
     }
     setSending(false);
   };
 
   return (
-    <div className="glass-panel" style={{ padding: '30px', maxWidth: '600px', width: '100%', display: 'flex', flexDirection: 'column', gap: '20px', border: '1px solid rgba(197, 160, 59, 0.3)', borderRadius: '16px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <span style={{ fontSize: '32px' }}>📢</span>
-        <div style={{ textAlign: 'left' }}>
-          <h2 style={{ margin: 0, color: 'var(--accent-gold)' }}>Créer une Annonce Royale</h2>
-          <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: 'var(--text-secondary)' }}>Ce message sera envoyé en privé à CHAQUE utilisateur inscrit au royaume.</p>
+    <div
+      className="glass-panel"
+      style={{
+        padding: "28px",
+        maxWidth: "580px",
+        width: "100%",
+        display: "flex",
+        flexDirection: "column",
+        gap: "18px",
+        border: "1px solid rgba(197, 160, 59, 0.3)",
+        borderRadius: "16px",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <div
+          style={{
+            width: "44px",
+            height: "44px",
+            borderRadius: "12px",
+            background: "rgba(197, 160, 59, 0.15)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          <Icon name="megaphone" size={22} color="var(--accent-gold)" />
+        </div>
+        <div style={{ textAlign: "left" }}>
+          <h2 style={{ margin: 0, color: "var(--accent-gold)", fontSize: "18px" }}>Annonce Officielle</h2>
+          <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "var(--text-secondary)" }}>
+            Ce message sera transmis en privé à chaque membre inscrit.
+          </p>
         </div>
       </div>
 
       {successCount !== null && (
-        <div style={{ padding: '12px', background: 'rgba(39, 174, 96, 0.1)', border: '1px solid #27ae60', color: '#2ecc71', borderRadius: '8px', fontSize: '14px', textAlign: 'left' }}>
-          ✓ Annonce royale envoyée avec succès à <strong>{successCount}</strong> utilisateur(s) !
+        <div
+          style={{
+            padding: "12px",
+            background: "rgba(39, 174, 96, 0.12)",
+            border: "1px solid #27ae60",
+            color: "#4ade80",
+            borderRadius: "10px",
+            fontSize: "13px",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          <Icon name="check-circle" size={16} color="#4ade80" />
+          <span>
+            Annonce envoyée avec succès à <strong>{successCount}</strong> utilisateur(s).
+          </span>
         </div>
       )}
 
       {error && (
-        <div style={{ padding: '12px', background: 'rgba(231, 76, 60, 0.1)', border: '1px solid #e74c3c', color: '#e74c3c', borderRadius: '8px', fontSize: '14px', textAlign: 'left' }}>
-          ⚠️ {error}
+        <div
+          style={{
+            padding: "12px",
+            background: "rgba(231, 76, 60, 0.12)",
+            border: "1px solid #e74c3c",
+            color: "#f87171",
+            borderRadius: "10px",
+            fontSize: "13px",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
+          <Icon name="alert-triangle" size={16} color="#f87171" />
+          <span>{error}</span>
         </div>
       )}
 
-      <form onSubmit={handleBroadcast} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <form onSubmit={handleBroadcast} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
         <textarea
           className="input-royal"
           value={content}
-          onChange={e => setContent(e.target.value)}
-          placeholder="Écrivez le message de votre annonce ici..."
-          style={{ width: '100%', height: '180px', padding: '16px', borderRadius: '12px', resize: 'vertical', fontSize: '15px', color: 'white', lineHeight: '1.5' }}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder="Rédigez le texte de votre annonce..."
+          style={{ width: "100%", height: "170px", padding: "14px", borderRadius: "12px", resize: "vertical", fontSize: "14px", lineHeight: 1.5 }}
           required
           disabled={sending}
         />
-        
-        <button 
-          type="submit" 
-          className="btn-royal" 
-          disabled={sending || !content.trim()} 
-          style={{ width: '100%', padding: '14px', borderRadius: '12px', fontSize: '15px', fontWeight: 'bold' }}
+
+        <button
+          type="submit"
+          className="btn-royal"
+          disabled={sending || !content.trim()}
+          style={{
+            width: "100%",
+            padding: "13px",
+            borderRadius: "12px",
+            fontSize: "14px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "8px",
+          }}
         >
-          {sending ? "⏳ Envoi royal en cours..." : "Diffuser l'Annonce 🚀"}
+          <Icon name={sending ? "clock" : "send"} size={16} color="#0A1128" />
+          <span>{sending ? "Diffusion en cours..." : "Diffuser l'annonce"}</span>
         </button>
       </form>
     </div>

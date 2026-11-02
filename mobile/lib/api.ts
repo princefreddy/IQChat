@@ -1,22 +1,30 @@
 /**
  * Centralized API client for IQChat Mobile.
- * Handles base URL, JWT token injection, and file uploads.
+ * Handles base URL, JWT token injection, session cache cleanup, and file uploads.
  */
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const BASE_URL = 'https://iqchat-backend.onrender.com';
-const WS_BASE = 'wss://iqchat-backend.onrender.com';
+const BASE_URL = "https://iqchat-backend.onrender.com";
+const WS_BASE = "wss://iqchat-backend.onrender.com";
 
 export interface AuthData {
   token: string;
   user: any;
 }
 
+export const chatMemoryCache: Record<string, { chatInfo: any; messages: any[] }> = {};
+
+export function clearChatMemoryCache() {
+  for (const key of Object.keys(chatMemoryCache)) {
+    delete chatMemoryCache[key];
+  }
+}
+
 /**
  * Get stored auth data (token + user).
  */
 export async function getAuthData(): Promise<AuthData | null> {
-  const raw = await AsyncStorage.getItem('iqchat_auth');
+  const raw = await AsyncStorage.getItem("iqchat_auth");
   if (!raw) return null;
   try {
     return JSON.parse(raw);
@@ -26,20 +34,20 @@ export async function getAuthData(): Promise<AuthData | null> {
 }
 
 /**
- * Save auth data after login/register.
+ * Save auth data after login/register/profile update.
  */
 export async function setAuthData(data: AuthData) {
-  await AsyncStorage.setItem('iqchat_auth', JSON.stringify(data));
-  // Legacy compat
-  await AsyncStorage.setItem('iqchat_user', JSON.stringify(data.user));
+  await AsyncStorage.setItem("iqchat_auth", JSON.stringify(data));
+  await AsyncStorage.setItem("iqchat_user", JSON.stringify(data.user));
 }
 
 /**
- * Clear all auth data on logout.
+ * Clear all auth data and in-memory caches on logout.
  */
 export async function clearAuthData() {
-  await AsyncStorage.removeItem('iqchat_auth');
-  await AsyncStorage.removeItem('iqchat_user');
+  clearChatMemoryCache();
+  await AsyncStorage.removeItem("iqchat_auth");
+  await AsyncStorage.removeItem("iqchat_user");
 }
 
 /**
@@ -48,13 +56,10 @@ export async function clearAuthData() {
 export async function getAuthHeaders(): Promise<Record<string, string>> {
   const auth = await getAuthData();
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   };
   if (auth?.token) {
-    headers['Authorization'] = `Bearer ${auth.token}`;
-  }
-  if (auth?.user?.id) {
-    headers['x-user-id'] = auth.user.id;
+    headers["Authorization"] = `Bearer ${auth.token}`;
   }
   return headers;
 }
@@ -84,13 +89,15 @@ export async function fetchWithTimeout(
 }
 
 /**
- * Fetch helper with retries and exponential/fixed backoff.
+ * Fetch helper with retries (safe default: retries only GET/HEAD requests unless explicitly requested).
  */
 export async function fetchWithRetry(
   url: string,
   options: RequestInit & { timeout?: number; retries?: number; delay?: number } = {}
 ): Promise<Response> {
-  const { retries = 5, delay = 2000, ...fetchOptions } = options;
+  const method = (options.method || "GET").toUpperCase();
+  const defaultRetries = method === "GET" || method === "HEAD" ? 3 : 1;
+  const { retries = defaultRetries, delay = 1500, ...fetchOptions } = options;
   let lastError: any;
 
   for (let i = 0; i < retries; i++) {
@@ -98,9 +105,7 @@ export async function fetchWithRetry(
       return await fetchWithTimeout(url, fetchOptions);
     } catch (err: any) {
       lastError = err;
-      // If it's a timeout or network request failed, retry after delay
       if (i < retries - 1) {
-        console.log(`[API] Connection attempt ${i + 1} failed. Retrying in ${delay}ms...`, err.message || err);
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
@@ -112,12 +117,12 @@ export async function fetchWithRetry(
  * Make an authenticated API request.
  */
 export async function apiFetch(
-  path: string, 
+  path: string,
   options: RequestInit & { timeout?: number; retries?: number; delay?: number } = {}
 ): Promise<Response> {
   const authHeaders = await getAuthHeaders();
   const url = `${BASE_URL}${path}`;
-  
+
   return fetchWithRetry(url, {
     ...options,
     headers: {
@@ -130,7 +135,11 @@ export async function apiFetch(
 /**
  * Upload a file to the server. Returns the file info.
  */
-export async function uploadFile(uri: string, fileName: string, mimeType: string): Promise<{
+export async function uploadFile(
+  uri: string,
+  fileName: string,
+  mimeType: string
+): Promise<{
   success: boolean;
   url: string;
   file_type: string;
@@ -138,25 +147,24 @@ export async function uploadFile(uri: string, fileName: string, mimeType: string
 }> {
   const auth = await getAuthData();
   const formData = new FormData();
-  formData.append('file', {
+  formData.append("file", {
     uri,
     name: fileName,
     type: mimeType,
   } as any);
 
   const headers: Record<string, string> = {};
-  if (auth?.token) headers['Authorization'] = `Bearer ${auth.token}`;
-  if (auth?.user?.id) headers['x-user-id'] = auth.user.id;
+  if (auth?.token) headers["Authorization"] = `Bearer ${auth.token}`;
 
   const res = await fetch(`${BASE_URL}/messages/upload`, {
-    method: 'POST',
+    method: "POST",
     headers,
     body: formData,
   });
 
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(err.detail || 'Upload failed');
+    throw new Error(err.detail || "Échec de l'envoi du fichier");
   }
   return res.json();
 }
@@ -164,16 +172,25 @@ export async function uploadFile(uri: string, fileName: string, mimeType: string
 /**
  * Get the WebSocket URL for a chat.
  */
-export function getChatWsUrl(chatId: string, userId: string): string {
-  return `${WS_BASE}/ws/chat/${chatId}?user_id=${userId}`;
+export function getChatWsUrl(chatId: string, userId: string, token?: string): string {
+  const tokenParam = token ? `&token=${encodeURIComponent(token)}` : "";
+  return `${WS_BASE}/ws/chat/${chatId}?user_id=${encodeURIComponent(userId)}${tokenParam}`;
+}
+
+/**
+ * Get the global user WebSocket URL for presence & real-time updates.
+ */
+export function getUserWsUrl(userId: string, token?: string): string {
+  const tokenParam = token ? `&token=${encodeURIComponent(token)}` : "";
+  return `${WS_BASE}/ws/user?user_id=${encodeURIComponent(userId)}${tokenParam}`;
 }
 
 /**
  * Get the full URL for an uploaded file.
  */
 export function getUploadUrl(path: string): string {
-  if (!path) return '';
-  if (path.startsWith('http')) return path;
+  if (!path) return "";
+  if (path.startsWith("http")) return path;
   return `${BASE_URL}${path}`;
 }
 

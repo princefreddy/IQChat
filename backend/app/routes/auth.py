@@ -1,94 +1,101 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..db.database import get_db
 from .. import models, schemas
-from ..services.auth_utils import create_access_token
+from ..services.auth_utils import create_access_token, is_user_in_quiet_hours
 import uuid
 import bcrypt
 import datetime
+import os
 
 router = APIRouter()
 
 WELCOME_MESSAGE_CONTENT = (
-    "👑 Bienvenue au Royaume d'IQChat ! 👑\n\n"
-    "Bonjour et bienvenue dans notre havre de paix numérique. En créant ce compte, vous rejoignez une messagerie conçue pour être saine, intentionnelle et respectueuse de votre esprit.\n\n"
-    "🧠 Pourquoi IQChat est différent ?\n"
-    "Les réseaux sociaux traditionnels exploitent vos circuits cérébraux en créant des boucles de dopamine artificielles et addictives (notifications incessantes, flux infini, validation sociale instantanée). Ces pics de dopamine fatiguent votre attention et créent du stress.\n"
-    "IQChat a été pensé pour inverser cette tendance. Ici, nous valorisons la \"Slow Communication\" (communication intentionnelle) et protégeons votre charge mentale grâce à des fonctionnalités uniques :\n\n"
-    "⏳ Les fonctionnalités phares :\n"
-    "1. Les Messages Différés (⏰) : Programmez l'envoi de vos messages. Cela vous permet d'écrire quand vous le souhaitez, sans perturber le sommeil ou la concentration de vos proches en différant la lecture.\n"
-    "2. Les Messages Éphémères (⏳) : Déterminez une durée de vie pour vos messages (5s, 10s, 1h, 24h). Une fois le temps écoulé, ils disparaissent à jamais, allégeant l'historique et libérant l'esprit.\n"
-    "3. Les Messages Cachés (👀) : Le contenu est flouté et ne se révèle que si le destinataire clique dessus. Cela évite le balayage passif et force une lecture active et choisie.\n"
-    "4. L'Anonymat à la demande (👤) : Activez le mode anonyme pour échanger de manière libre et désinhibée, sans la pression de l'image sociale.\n"
-    "5. Catalogue de Mini-Jeux (🎮) : Jouez au Morpion, à Puissance 4, à Pierre-Papier-Ciseaux ou au Mot Mystère directement dans vos bulles de chat au tour par tour asynchrone, favorisant un divertissement calme et partagé.\n\n"
-    "⚙️ Vos paramètres pour un esprit serein :\n"
-    "Dans les onglets et options d'envoi, vous pouvez configurer précisément la visibilité et la durée de vie de vos messages. Prenez le contrôle de vos intérations.\n\n"
-    "Nous espérons que vous trouverez ici un espace propice à des échanges authentiques et apaisés.\n\n"
-    "Votre Administrateur Suprême 🔱"
+    "Bienvenue sur IQChat.\n\n"
+    "Vous rejoignez un espace de messagerie conçu pour le calme, la confidentialité et la communication intentionnelle (Slow Communication).\n\n"
+    "Voici les modes d'échange à votre disposition :\n"
+    "1. Messages Différés : Programmez la date et l'heure de visibilité d'un message afin d'écrire librement sans interrompre le repos ou la concentration de vos proches.\n"
+    "2. Messages Éphémères : Définissez une durée de vie (5s à 24h) qui ne démarre qu'au moment où votre destinataire lit le message, puis s'efface définitivement.\n"
+    "3. Messages Cachés : Envoyez un message flouté qui ne se dévoile qu'après une action volontaire du lecteur.\n"
+    "4. Mode Anonyme : Masquez votre identité sur un message ponctuel pour vous exprimer librement.\n"
+    "5. Mini-Jeux au tour par tour : Lancez une partie de Morpion, Puissance 4, Pierre-Papier-Ciseaux ou Mot Mystère directement dans la conversation.\n\n"
+    "Rendez-vous dans Paramètres pour configurer vos heures de quiétude, vos préférences de confidentialité et votre confort de lecture.\n\n"
+    "— L'Administration IQChat"
 )
 
+
 def send_welcome_message(db: Session, new_user: models.User):
-    # 1. Get or create the admin user
-    admin_user = db.query(models.User).filter(models.User.username == 'admin').first()
+    admin_user = db.query(models.User).filter(models.User.username == "admin").first()
     if not admin_user:
-        # Create default admin user if not exists
-        import bcrypt
-        hashed = bcrypt.hashpw('admin_royal_gold_iqchat_pwd_2026'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        default_admin_pwd = os.getenv("ADMIN_INITIAL_PASSWORD", "admin_royal_gold_iqchat_pwd_2026")
+        hashed = bcrypt.hashpw(default_admin_pwd.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
         admin_user = models.User(
             id=str(uuid.uuid4()),
-            username='admin',
-            email='admin@iqchat.app',
-            full_name='Administrateur Suprême',
+            username="admin",
+            email="admin@iqchat.app",
+            full_name="Administration IQChat",
+            bio="Compte officiel d'accompagnement et d'annonces.",
             hashed_password=hashed,
-            avatar_url='https://api.dicebear.com/7.x/bottts/svg?seed=admin'
+            avatar_url="https://api.dicebear.com/7.x/bottts/png?seed=admin",
         )
         db.add(admin_user)
         db.commit()
         db.refresh(admin_user)
 
-    # 2. Check if a private chat already exists between admin and the new user
-    chat_ids_admin = {m.chat_id for m in db.query(models.ChatMember).filter(models.ChatMember.user_id == admin_user.id).all()}
-    chat_ids_user = {m.chat_id for m in db.query(models.ChatMember).filter(models.ChatMember.user_id == new_user.id).all()}
+    if new_user.id == admin_user.id:
+        return
+
+    chat_ids_admin = {
+        m.chat_id for m in db.query(models.ChatMember).filter(models.ChatMember.user_id == admin_user.id).all()
+    }
+    chat_ids_user = {
+        m.chat_id for m in db.query(models.ChatMember).filter(models.ChatMember.user_id == new_user.id).all()
+    }
     common_ids = chat_ids_admin.intersection(chat_ids_user)
-    
+
     existing_chat = None
     if common_ids:
-        existing_chat = db.query(models.Chat).filter(models.Chat.id.in_(list(common_ids)), models.Chat.type == 'private').first()
+        existing_chat = (
+            db.query(models.Chat)
+            .filter(models.Chat.id.in_(list(common_ids)), models.Chat.type == "private")
+            .first()
+        )
 
     if not existing_chat:
-        # Create private chat
         existing_chat = models.Chat(
             id=str(uuid.uuid4()),
-            type='private',
+            type="private",
             name=None,
             avatar_url=None,
-            status='accepted'
+            status="accepted",
         )
         db.add(existing_chat)
         db.commit()
 
-        # Add members
         member_admin = models.ChatMember(
             id=str(uuid.uuid4()),
             chat_id=existing_chat.id,
             user_id=admin_user.id,
-            role="admin"
+            role="admin",
         )
         member_user = models.ChatMember(
             id=str(uuid.uuid4()),
             chat_id=existing_chat.id,
             user_id=new_user.id,
-            role="member"
+            role="member",
         )
         db.add(member_admin)
         db.add(member_user)
         db.commit()
 
-    # 3. Check if a welcome message or any message from admin already exists in this chat
-    welcome_msg_exists = db.query(models.Message).filter(
-        models.Message.chat_id == existing_chat.id,
-        models.Message.sender_id == admin_user.id
-    ).first()
+    welcome_msg_exists = (
+        db.query(models.Message)
+        .filter(
+            models.Message.chat_id == existing_chat.id,
+            models.Message.sender_id == admin_user.id,
+        )
+        .first()
+    )
 
     if not welcome_msg_exists:
         welcome_msg = models.Message(
@@ -96,86 +103,109 @@ def send_welcome_message(db: Session, new_user: models.User):
             chat_id=existing_chat.id,
             sender_id=admin_user.id,
             content=WELCOME_MESSAGE_CONTENT,
-            type='normal',
+            type="normal",
             is_anonymous=False,
             ttl=None,
             reaction=None,
+            reactions_json="{}",
             is_read=False,
             visible_at=None,
             created_at=datetime.datetime.utcnow(),
-            expires_at=None
+            expires_at=None,
         )
         db.add(welcome_msg)
         db.commit()
 
-def verify_password(plain_password, hashed_password):
-    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
 
-def get_password_hash(password):
-    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+
+
+def get_password_hash(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def serialize_user_out(user: models.User, is_online: bool = False) -> dict:
+    data = schemas.UserOut.model_validate(user).model_dump()
+    data["is_online"] = is_online if getattr(user, "show_online_status", True) else False
+    data["is_in_quiet_hours"] = is_user_in_quiet_hours(user)
+    return data
+
 
 @router.post("/register")
 def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
-    # Password validation
     if len(user.password) < 6:
         raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins 6 caractères")
-    
-    db_user = db.query(models.User).filter((models.User.username == user.username) | (models.User.email == user.email)).first()
+
+    clean_username = user.username.strip()
+    clean_email = user.email.strip().lower()
+    if not clean_username:
+        raise HTTPException(status_code=400, detail="Nom d'utilisateur invalide")
+
+    db_user = (
+        db.query(models.User)
+        .filter((models.User.username == clean_username) | (models.User.email == clean_email))
+        .first()
+    )
     if db_user:
-        raise HTTPException(status_code=400, detail="Username or email already registered")
-    
+        raise HTTPException(status_code=400, detail="Ce nom d'utilisateur ou cet email est déjà utilisé")
+
+    avatar = user.avatar_url or f"https://api.dicebear.com/7.x/adventurer/png?seed={clean_username}"
+    if "api.dicebear.com" in avatar and "/svg?" in avatar:
+        avatar = avatar.replace("/svg?", "/png?")
+
     new_user = models.User(
         id=str(uuid.uuid4()),
-        username=user.username,
-        email=user.email,
-        full_name=user.full_name,
+        username=clean_username,
+        email=clean_email,
+        full_name=user.full_name.strip(),
         hashed_password=get_password_hash(user.password),
-        avatar_url=user.avatar_url or f"https://api.dicebear.com/7.x/adventurer/svg?seed={user.username}"
+        avatar_url=avatar,
+        bio="",
     )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    
-    # Send automatic welcome message from admin
+
     try:
         send_welcome_message(db, new_user)
     except Exception as e:
         print(f"Error sending welcome message: {e}")
-    
-    # Generate JWT token
+
     token = create_access_token(data={"sub": new_user.id, "username": new_user.username})
-    
+
     return {
         "token": token,
-        "user": schemas.UserOut.model_validate(new_user).model_dump()
+        "user": serialize_user_out(new_user, is_online=True),
     }
+
 
 @router.post("/login")
 def login(creds: schemas.UserLogin, db: Session = Depends(get_db)):
-    # Support login by email OR username
-    user = db.query(models.User).filter(
-        (models.User.email == creds.identifier) | (models.User.username == creds.identifier)
-    ).first()
-    
+    ident = creds.identifier.strip()
+    user = (
+        db.query(models.User)
+        .filter((models.User.email == ident.lower()) | (models.User.email == ident) | (models.User.username == ident))
+        .first()
+    )
+
     if not user:
         raise HTTPException(status_code=401, detail="Identifiant ou mot de passe invalide")
-        
+
     if user.is_banned:
-        raise HTTPException(status_code=403, detail="Votre compte a été banni par l'Administrateur Suprême.")
-        
+        raise HTTPException(status_code=403, detail="Votre compte a été suspendu par l'administration.")
+
     if not verify_password(creds.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Identifiant ou mot de passe invalide")
-    
-    # Send automatic welcome message from admin if they don't have one yet
+
     try:
         send_welcome_message(db, user)
     except Exception as e:
         print(f"Error sending welcome message: {e}")
 
-    # Generate JWT token
     token = create_access_token(data={"sub": user.id, "username": user.username})
-    
+
     return {
         "token": token,
-        "user": schemas.UserOut.model_validate(user).model_dump()
+        "user": serialize_user_out(user, is_online=True),
     }
