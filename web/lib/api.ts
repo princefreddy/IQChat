@@ -3,7 +3,9 @@
  * Handles base URL, JWT token injection, session cache cleanup, and safe retries.
  */
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (typeof window !== "undefined" ? `http://${window.location.hostname}:8000` : "http://localhost:8000");
 const WS_BASE = BASE_URL.replace(/^http/, "ws");
 
 export const chatMemoryCache: Record<string, { chatInfo: any; messages: any[] }> = {};

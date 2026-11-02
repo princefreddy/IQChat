@@ -822,7 +822,7 @@ export default function ChatScreen() {
                 </Animated.View>
                 <Text style={styles.typingLabel}>{typingUser} écrit...</Text>
               </View>
-            ) : null
+            ) : undefined
           }
         />
 

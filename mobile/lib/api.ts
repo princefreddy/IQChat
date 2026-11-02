@@ -3,9 +3,21 @@
  * Handles base URL, JWT token injection, session cache cleanup, and file uploads.
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Constants from "expo-constants";
 
-const BASE_URL = "https://iqchat-backend.onrender.com";
-const WS_BASE = "wss://iqchat-backend.onrender.com";
+function resolveBaseUrl(): string {
+  if (typeof __DEV__ !== "undefined" && __DEV__) {
+    const hostUri = Constants.expoConfig?.hostUri;
+    const lanHost = hostUri?.split(":")[0];
+    if (lanHost && /^\d+\.\d+\.\d+\.\d+$/.test(lanHost)) {
+      return `http://${lanHost}:8000`;
+    }
+  }
+  return "https://iqchat-backend.onrender.com";
+}
+
+const BASE_URL = resolveBaseUrl();
+const WS_BASE = BASE_URL.replace(/^http/, "ws");
 
 export interface AuthData {
   token: string;

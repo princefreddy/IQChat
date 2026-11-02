@@ -14,7 +14,12 @@ import {
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
-import { Audio } from "expo-av";
+import {
+  useAudioRecorder,
+  RecordingPresets,
+  AudioModule,
+  setAudioModeAsync,
+} from "expo-audio";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -58,7 +63,7 @@ export default function MessageInput({
   const [pendingFile, setPendingFile] = useState<{ url: string; file_type: string; file_name: string } | null>(null);
 
   const [isRecording, setIsRecording] = useState(false);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -96,15 +101,15 @@ export default function MessageInput({
 
   const startRecording = async () => {
     try {
-      const permission = await Audio.requestPermissionsAsync();
-      if (permission.status === "granted") {
+      const permission = await AudioModule.requestRecordingPermissionsAsync();
+      if (permission.granted) {
         if (hapticsOn) await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
+        await setAudioModeAsync({
+          allowsRecording: true,
+          playsInSilentMode: true,
         });
-        const { recording: newRecording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-        setRecording(newRecording);
+        await recorder.prepareToRecordAsync();
+        recorder.record();
         setIsRecording(true);
         setRecordingDuration(0);
         timerRef.current = setInterval(() => setRecordingDuration((p) => p + 1), 1000);
@@ -115,15 +120,14 @@ export default function MessageInput({
   };
 
   const finishRecording = async (sendImmediately: boolean) => {
-    if (!recording) return;
+    if (!isRecording) return;
     setIsRecording(false);
     if (timerRef.current) clearInterval(timerRef.current);
 
     try {
       if (hapticsOn) await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
-      setRecording(null);
+      await recorder.stop();
+      const uri = recorder.uri;
       if (!uri) return;
 
       setUploadingFile(true);
@@ -143,20 +147,17 @@ export default function MessageInput({
         Alert.alert("Erreur", err.message || "Échec de l'envoi du message vocal.");
       }
       setUploadingFile(false);
-    } catch {
-      setRecording(null);
-    }
+    } catch {}
   };
 
   const cancelRecording = async () => {
-    if (!recording) return;
+    if (!isRecording) return;
     setIsRecording(false);
     if (timerRef.current) clearInterval(timerRef.current);
     try {
       if (hapticsOn) await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      await recording.stopAndUnloadAsync();
+      await recorder.stop();
     } catch {}
-    setRecording(null);
   };
 
   const formatDuration = (secs: number) => {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Image, Linking, ActivityIndicator, Modal, Alert } from "react-native";
-import { Video, ResizeMode, Audio } from "expo-av";
+import { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } from "expo-audio";
+import { useVideoPlayer, VideoView } from "expo-video";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
@@ -14,86 +15,46 @@ import WordMystery from "./games/WordMystery";
 const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "🔥"];
 
 export function VoicePlayer({ url }: { url: string }) {
-  const soundRef = useRef<Audio.Sound | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [duration, setDuration] = useState(0);
-  const [position, setPosition] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
+  const player = useAudioPlayer(url);
+  const status = useAudioPlayerStatus(player);
 
-  useEffect(() => {
-    return () => {
-      if (soundRef.current) {
-        soundRef.current.unloadAsync().catch(() => {});
-      }
-    };
-  }, []);
-
-  const onPlaybackStatusUpdate = (status: any) => {
-    if (status.isLoaded) {
-      setPosition(status.positionMillis);
-      setDuration(status.durationMillis || 0);
-      setIsPlaying(status.isPlaying);
-      if (status.didJustFinish) {
-        setIsPlaying(false);
-        setPosition(0);
-        soundRef.current?.setPositionAsync(0).catch(() => {});
-      }
-    }
-  };
+  const isPlaying = !!status.playing;
+  const durationSecs = status.duration || 0;
+  const positionSecs = status.currentTime || 0;
+  const isBuffering = !!status.isBuffering && !status.isLoaded;
 
   const handlePlayPause = async () => {
     try {
-      const activeSound = soundRef.current;
-      if (activeSound) {
-        if (isPlaying) {
-          await activeSound.pauseAsync();
-        } else {
-          await Audio.setAudioModeAsync({
-            allowsRecordingIOS: false,
-            playsInSilentModeIOS: true,
-          });
-          const status = await activeSound.getStatusAsync();
-          if (status.isLoaded) {
-            const dur = status.durationMillis || 0;
-            const pos = status.positionMillis || 0;
-            if (status.didJustFinish || pos >= dur - 100) {
-              await activeSound.setPositionAsync(0);
-            }
-          }
-          await activeSound.playAsync();
-        }
+      if (isPlaying) {
+        player.pause();
       } else {
-        setIsLoading(true);
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          playsInSilentModeIOS: true,
+        await setAudioModeAsync({
+          allowsRecording: false,
+          playsInSilentMode: true,
         });
-        const { sound: newSound } = await Audio.Sound.createAsync(
-          { uri: url },
-          { shouldPlay: true },
-          onPlaybackStatusUpdate
-        );
-        soundRef.current = newSound;
-        setIsLoading(false);
+        if (durationSecs > 0 && positionSecs >= durationSecs - 0.15) {
+          await player.seekTo(0);
+        }
+        player.play();
       }
     } catch {
-      setIsLoading(false);
+      // silent
     }
   };
 
-  const formatTime = (millis: number) => {
-    const totalSecs = Math.floor(millis / 1000);
+  const formatTime = (secs: number) => {
+    const totalSecs = Math.max(0, Math.floor(secs || 0));
     const m = Math.floor(totalSecs / 60);
     const s = totalSecs % 60;
     return `${m}:${s < 10 ? "0" : ""}${s}`;
   };
 
-  const progress = duration > 0 ? position / duration : 0;
+  const progress = durationSecs > 0 ? Math.min(1, positionSecs / durationSecs) : 0;
 
   return (
     <View style={styles.audioPlayerContainer}>
-      <TouchableOpacity onPress={handlePlayPause} disabled={isLoading} style={styles.playButton}>
-        {isLoading ? (
+      <TouchableOpacity onPress={handlePlayPause} disabled={isBuffering} style={styles.playButton}>
+        {isBuffering ? (
           <ActivityIndicator size="small" color="#C5A03B" />
         ) : (
           <Feather name={isPlaying ? "pause" : "play"} size={15} color="#C5A03B" />
@@ -104,11 +65,26 @@ export function VoicePlayer({ url }: { url: string }) {
           <View style={[styles.progressBarFill, { width: `${progress * 100}%` }]} />
         </View>
         <View style={styles.timeRow}>
-          <Text style={styles.timeText}>{formatTime(position)}</Text>
-          <Text style={styles.timeText}>{duration > 0 ? formatTime(duration) : "0:00"}</Text>
+          <Text style={styles.timeText}>{formatTime(positionSecs)}</Text>
+          <Text style={styles.timeText}>{durationSecs > 0 ? formatTime(durationSecs) : "0:00"}</Text>
         </View>
       </View>
     </View>
+  );
+}
+
+function ChatVideoPlayer({ url }: { url: string }) {
+  const player = useVideoPlayer(url, (p) => {
+    p.loop = false;
+  });
+
+  return (
+    <VideoView
+      player={player}
+      style={{ width: 240, height: 175, borderRadius: 10 }}
+      contentFit="contain"
+      nativeControls
+    />
   );
 }
 
@@ -288,12 +264,7 @@ export default function MessageBubble({
     if (message.file_type === "video") {
       return (
         <View style={{ marginTop: message.content ? 8 : 0, borderRadius: 10, overflow: "hidden" }}>
-          <Video
-            source={{ uri: url }}
-            style={{ width: 240, height: 175, borderRadius: 10 }}
-            useNativeControls
-            resizeMode={ResizeMode.CONTAIN}
-          />
+          <ChatVideoPlayer url={url} />
         </View>
       );
     }
