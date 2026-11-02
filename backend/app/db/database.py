@@ -6,7 +6,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./iqchat.db")
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./homichat.db")
 
 # SQLAlchemy 1.4+ compatibility: postgres:// is deprecated, replace with postgresql://
 if SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
@@ -71,12 +71,31 @@ def run_auto_migrations():
                     "WHERE avatar_url LIKE '%api.dicebear.com%/svg?seed=%'"
                 )
             )
+            conn.execute(
+                text(
+                    "UPDATE users SET full_name = REPLACE(full_name, 'IQChat', 'HomiChat') "
+                    "WHERE full_name LIKE '%IQChat%'"
+                )
+            )
+            conn.execute(
+                text(
+                    "UPDATE users SET email = REPLACE(email, 'iqchat', 'homichat') "
+                    "WHERE email LIKE '%@iqchat.%'"
+                )
+            )
 
         if "messages" in tables:
             existing_msg_cols = {c["name"] for c in inspector.get_columns("messages")}
             for col_name, col_ddl in message_migrations:
                 if col_name not in existing_msg_cols:
                     conn.execute(text(f"ALTER TABLE messages ADD COLUMN {col_name} {col_ddl}"))
+
+            conn.execute(
+                text(
+                    "UPDATE messages SET content = REPLACE(content, 'IQChat', 'HomiChat') "
+                    "WHERE content LIKE '%IQChat%'"
+                )
+            )
 
 
 def get_db():

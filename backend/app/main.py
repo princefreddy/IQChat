@@ -9,8 +9,13 @@ import mimetypes
 
 # Register explicit mime types to prevent iOS AVFoundation player failures
 mimetypes.add_type("audio/mp4", ".m4a")
+mimetypes.add_type("audio/aac", ".aac")
 mimetypes.add_type("audio/mpeg", ".mp3")
 mimetypes.add_type("video/mp4", ".mp4")
+mimetypes.add_type("video/mp4", ".m4v")
+mimetypes.add_type("video/quicktime", ".mov")
+mimetypes.add_type("image/heic", ".heic")
+mimetypes.add_type("image/heif", ".heif")
 mimetypes.add_type("audio/wav", ".wav")
 
 # Create database tables and apply safe column migrations
@@ -21,7 +26,7 @@ run_auto_migrations()
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads"))
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-app = FastAPI(title="IQChat API")
+app = FastAPI(title="HomiChat API")
 
 cors_origins_env = os.getenv("CORS_ORIGINS", "")
 allowed_origins = [o.strip() for o in cors_origins_env.split(",") if o.strip()] or ["*"]
@@ -51,4 +56,4 @@ app.add_api_websocket_route("/ws/user", user_websocket_endpoint)
 
 @app.get("/")
 def root():
-    return {"status": "ok", "message": "IQChat API operational"}
+    return {"status": "ok", "message": "HomiChat API operational"}

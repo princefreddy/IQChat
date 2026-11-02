@@ -79,13 +79,17 @@ export default function SettingsModal({ visible, user, onClose, onSave, onLogout
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.65,
+        preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
       });
       if (!result.canceled && result.assets[0]?.uri) {
         setUploadingAvatar(true);
         try {
           const asset = result.assets[0];
-          const fileName = asset.fileName || `avatar_${Date.now()}.jpg`;
-          const uploaded = await uploadFile(asset.uri, fileName, "image/jpeg");
+          const rawExt = asset.uri.split("?")[0].split(".").pop()?.toLowerCase() || "jpg";
+          const ext = ["jpg", "jpeg", "png", "webp", "heic", "heif"].includes(rawExt) ? rawExt : "jpg";
+          const fileName = `avatar_${Date.now()}.${ext}`;
+          const mimeType = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
+          const uploaded = await uploadFile(asset.uri, fileName, mimeType);
           setAvatarUrl(getUploadUrl(uploaded.url));
         } catch (err: any) {
           Alert.alert("Erreur", err.message || "Impossible de téléverser la photo de profil.");
@@ -93,7 +97,9 @@ export default function SettingsModal({ visible, user, onClose, onSave, onLogout
           setUploadingAvatar(false);
         }
       }
-    } catch {}
+    } catch (err: any) {
+      Alert.alert("Erreur", err?.message || "Impossible d'ouvrir la photothèque.");
+    }
   };
 
   const handleRandomAvatar = () => {
@@ -483,7 +489,7 @@ export default function SettingsModal({ visible, user, onClose, onSave, onLogout
 
                   <View style={{ marginTop: 12, padding: 14, borderRadius: 14, backgroundColor: "#2E5B88", alignSelf: "flex-end" }}>
                     <Text style={{ color: "#FFF", fontSize: fontSize === "compact" ? 13 : fontSize === "large" ? 17 : 15 }}>
-                      Aperçu de la taille de lecture sur IQChat.
+                      Aperçu de la taille de lecture sur HomiChat.
                     </Text>
                   </View>
                 </View>

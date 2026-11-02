@@ -1,7 +1,10 @@
+import os
 import sqlite3
 
+DB_PATH = os.path.join(os.path.dirname(__file__), "homichat.db")
+
 try:
-    conn = sqlite3.connect('d:/IQChat/backend/iqchat.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("ALTER TABLE chats ADD COLUMN status VARCHAR DEFAULT 'pending';")
     cursor.execute("ALTER TABLE messages ADD COLUMN visible_at DATETIME;")

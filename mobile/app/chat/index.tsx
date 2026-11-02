@@ -144,7 +144,9 @@ export default function ChatListScreen() {
               data.latest_time.endsWith("Z") || data.latest_time.includes("+")
                 ? data.latest_time
                 : `${data.latest_time}Z`;
-            const lastSeen = await AsyncStorage.getItem("iqchat_last_seen_feed");
+            const lastSeen =
+              (await AsyncStorage.getItem("homichat_last_seen_feed")) ||
+              (await AsyncStorage.getItem("iqchat_last_seen_feed"));
             if (!lastSeen || new Date(serverDateStr).getTime() > new Date(lastSeen).getTime()) {
               if (viewModeRef.current !== "feed") setHasNewFeed(true);
             }
@@ -339,7 +341,7 @@ export default function ChatListScreen() {
   };
 
   const confirmLogout = () => {
-    Alert.alert("Déconnexion", "Voulez-vous vous déconnecter d'IQChat ?", [
+    Alert.alert("Déconnexion", "Voulez-vous vous déconnecter de HomiChat ?", [
       { text: "Annuler", style: "cancel" },
       { text: "Se déconnecter", style: "destructive", onPress: performLogout },
     ]);
@@ -783,7 +785,7 @@ export default function ChatListScreen() {
             const { default: AsyncStorage } = await import(
               "@react-native-async-storage/async-storage"
             );
-            AsyncStorage.setItem("iqchat_last_seen_feed", new Date().toISOString());
+            AsyncStorage.setItem("homichat_last_seen_feed", new Date().toISOString());
           }}
         >
           <Feather
@@ -940,7 +942,7 @@ export default function ChatListScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: "#C5A03B", fontSize: 16, fontWeight: "700" }}>
-                      Annonce Officielle IQChat
+                      Annonce Officielle HomiChat
                     </Text>
                     <Text style={{ color: "#8E9BAE", fontSize: 12 }}>
                       Envoie un message direct officiel à tous les utilisateurs inscrits.

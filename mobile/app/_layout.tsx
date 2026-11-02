@@ -9,7 +9,7 @@ export default function RootLayout() {
         <Stack.Screen
           name="chat/index"
           options={{
-            title: "IQChat",
+            title: "HomiChat",
             headerStyle: { backgroundColor: "#0A1128" },
             headerTitleStyle: { color: "#C5A03B", fontWeight: "700" },
             headerTintColor: "#C5A03B",

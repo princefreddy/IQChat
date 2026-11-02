@@ -114,7 +114,7 @@ export default function Home() {
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: "24px" }}>
           <img
             src="/logo.png"
-            alt="IQChat Logo"
+            alt="HomiChat Logo"
             style={{
               width: "84px",
               height: "84px",
@@ -124,7 +124,7 @@ export default function Home() {
               border: "2px solid rgba(197, 160, 59, 0.4)",
             }}
           />
-          <h1 style={{ color: "var(--accent-gold)", fontWeight: 700, fontSize: "2.3rem", letterSpacing: "1px" }}>IQChat</h1>
+          <h1 style={{ color: "var(--accent-gold)", fontWeight: 700, fontSize: "2.3rem", letterSpacing: "1px" }}>HomiChat</h1>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.92rem", marginTop: "4px" }}>
             Messagerie Intentionnelle &amp; Confidentielle
           </p>

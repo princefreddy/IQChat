@@ -56,7 +56,7 @@ def get_link_preview(url: str = Query(..., description="The URL to scrape")):
 
     try:
         headers = {
-            "User-Agent": "Mozilla/5.0 (compatible; IQChatBot/1.0)"
+            "User-Agent": "Mozilla/5.0 (compatible; HomiChatBot/1.0)"
         }
         res = requests.get(url, headers=headers, timeout=4, stream=True, allow_redirects=True)
         # Validate final redirected URL as well

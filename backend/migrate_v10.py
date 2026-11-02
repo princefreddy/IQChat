@@ -1,7 +1,7 @@
 import sqlite3
 import os
 
-DB_PATH = os.path.join(os.path.dirname(__file__), 'iqchat.db')
+DB_PATH = os.path.join(os.path.dirname(__file__), 'homichat.db')
 
 def migrate():
     print(f"Connecting to database at {DB_PATH}")

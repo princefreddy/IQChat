@@ -329,8 +329,8 @@ export default function MessageInput({
     if (!file) return;
     setShowPlusMenu(false);
 
-    if (file.size > 10 * 1024 * 1024) {
-      showToast("Fichier trop volumineux (max 10 Mo)", "error");
+    if (file.size > 25 * 1024 * 1024) {
+      showToast("Fichier trop volumineux (max 25 Mo)", "error");
       return;
     }
 

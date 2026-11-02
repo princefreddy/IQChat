@@ -17,7 +17,7 @@ import * as DocumentPicker from "expo-document-picker";
 import {
   useAudioRecorder,
   RecordingPresets,
-  AudioModule,
+  requestRecordingPermissionsAsync,
   setAudioModeAsync,
 } from "expo-audio";
 import { Feather } from "@expo/vector-icons";
@@ -101,22 +101,31 @@ export default function MessageInput({
 
   const startRecording = async () => {
     try {
-      const permission = await AudioModule.requestRecordingPermissionsAsync();
-      if (permission.granted) {
-        if (hapticsOn) await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        await setAudioModeAsync({
-          allowsRecording: true,
-          playsInSilentMode: true,
-        });
-        await recorder.prepareToRecordAsync();
-        recorder.record();
-        setIsRecording(true);
-        setRecordingDuration(0);
-        timerRef.current = setInterval(() => setRecordingDuration((p) => p + 1), 1000);
-      } else {
-        Alert.alert("Permission requise", "Veuillez autoriser l'accès au microphone.");
+      const permission = await requestRecordingPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          "Permission requise",
+          "Veuillez autoriser l'accès au microphone dans les réglages de votre téléphone."
+        );
+        return;
       }
-    } catch {}
+      if (hapticsOn) await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+        interruptionMode: "doNotMix",
+        shouldRouteThroughEarpiece: false,
+      });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      setIsRecording(true);
+      setRecordingDuration(0);
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = setInterval(() => setRecordingDuration((p) => p + 1), 1000);
+    } catch (err: any) {
+      setIsRecording(false);
+      Alert.alert("Microphone indisponible", err?.message || "Impossible de démarrer l'enregistrement vocal.");
+    }
   };
 
   const finishRecording = async (sendImmediately: boolean) => {
@@ -127,12 +136,35 @@ export default function MessageInput({
     try {
       if (hapticsOn) await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       await recorder.stop();
-      const uri = recorder.uri;
-      if (!uri) return;
+      const uri = recorder.uri || recorder.getStatus()?.url;
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      }).catch(() => {});
+
+      if (!uri) {
+        Alert.alert("Enregistrement vide", "Aucun fichier audio n'a pu être récupéré.");
+        return;
+      }
+
+      const rawExt = uri.split("?")[0].split(".").pop()?.toLowerCase() || "m4a";
+      const ext = ["m4a", "mp3", "wav", "ogg", "webm", "aac"].includes(rawExt) ? rawExt : "m4a";
+      const mimeType =
+        ext === "webm"
+          ? "audio/webm"
+          : ext === "mp3"
+          ? "audio/mpeg"
+          : ext === "wav"
+          ? "audio/wav"
+          : ext === "ogg"
+          ? "audio/ogg"
+          : ext === "aac"
+          ? "audio/aac"
+          : "audio/mp4";
 
       setUploadingFile(true);
       try {
-        const uploaded = await uploadFile(uri, "message_vocal.m4a", "audio/mp4");
+        const uploaded = await uploadFile(uri, `message_vocal_${Date.now()}.${ext}`, mimeType);
         const voiceFile = {
           url: uploaded.url,
           file_type: "audio",
@@ -144,10 +176,14 @@ export default function MessageInput({
           setPendingFile(voiceFile);
         }
       } catch (err: any) {
-        Alert.alert("Erreur", err.message || "Échec de l'envoi du message vocal.");
+        Alert.alert("Erreur d'envoi", err?.message || "Échec de l'envoi du message vocal.");
+      } finally {
+        setUploadingFile(false);
       }
+    } catch (err: any) {
       setUploadingFile(false);
-    } catch {}
+      Alert.alert("Erreur", err?.message || "Impossible de finaliser l'enregistrement vocal.");
+    }
   };
 
   const cancelRecording = async () => {
@@ -157,6 +193,10 @@ export default function MessageInput({
     try {
       if (hapticsOn) await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       await recorder.stop();
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      }).catch(() => {});
     } catch {}
   };
 
@@ -231,15 +271,55 @@ export default function MessageInput({
 
   const handlePickImage = async () => {
     setShowPlusSheet(false);
+    // Wait for the bottom-sheet Modal slide animation to finish dismissing on iOS before presenting native picker
+    await new Promise((resolve) => setTimeout(resolve, Platform.OS === "ios" ? 420 : 120));
+
     try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          "Permission requise",
+          "Veuillez autoriser l'accès à votre photothèque pour envoyer des photos ou vidéos."
+        );
+        return;
+      }
+
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images", "videos"],
         quality: 0.8,
+        videoExportPreset: ImagePicker.VideoExportPreset.MediumQuality,
+        preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
       });
+
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
-        const fileName = asset.fileName || `media_${Date.now()}.${asset.type === "video" ? "mp4" : "jpg"}`;
-        const mimeType = asset.type === "video" ? "video/mp4" : "image/jpeg";
+        const isVideo = asset.type === "video";
+        const uriExt = asset.uri.split("?")[0].split(".").pop()?.toLowerCase() || "";
+        const validImageExts = ["jpg", "jpeg", "png", "gif", "webp", "heic", "heif"];
+        const validVideoExts = ["mp4", "webm", "mov", "m4v"];
+        const ext = isVideo
+          ? validVideoExts.includes(uriExt)
+            ? uriExt
+            : "mp4"
+          : validImageExts.includes(uriExt)
+          ? uriExt
+          : "jpg";
+
+        const baseName = (asset.fileName || `media_${Date.now()}`).replace(/\.[^/.]+$/, "");
+        const fileName = `${baseName}.${ext}`;
+        const mimeType =
+          asset.mimeType ||
+          (isVideo
+            ? ext === "mov"
+              ? "video/quicktime"
+              : "video/mp4"
+            : ext === "png"
+            ? "image/png"
+            : ext === "gif"
+            ? "image/gif"
+            : ext === "webp"
+            ? "image/webp"
+            : "image/jpeg");
 
         setUploadingFile(true);
         try {
@@ -250,15 +330,21 @@ export default function MessageInput({
             file_name: uploaded.original_name,
           });
         } catch (err: any) {
-          Alert.alert("Erreur", err.message || "Échec du téléversement.");
+          Alert.alert("Erreur d'envoi", err?.message || "Échec du téléversement du média.");
+        } finally {
+          setUploadingFile(false);
         }
-        setUploadingFile(false);
       }
-    } catch {}
+    } catch (err: any) {
+      Alert.alert("Erreur", err?.message || "Impossible d'ouvrir la galerie photos/vidéos.");
+    }
   };
 
   const handlePickDocument = async () => {
     setShowPlusSheet(false);
+    // Wait for the bottom-sheet Modal slide animation to finish dismissing on iOS before presenting native picker
+    await new Promise((resolve) => setTimeout(resolve, Platform.OS === "ios" ? 420 : 120));
+
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: [
@@ -266,24 +352,35 @@ export default function MessageInput({
           "application/pdf",
           "application/msword",
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "text/plain",
+          "text/csv",
+          "application/zip",
         ],
+        copyToCacheDirectory: true,
       });
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
         setUploadingFile(true);
         try {
-          const uploaded = await uploadFile(asset.uri, asset.name, asset.mimeType || "application/octet-stream");
+          const uploaded = await uploadFile(
+            asset.uri,
+            asset.name || `document_${Date.now()}.pdf`,
+            asset.mimeType || "application/octet-stream"
+          );
           setPendingFile({
             url: uploaded.url,
             file_type: uploaded.file_type,
             file_name: uploaded.original_name,
           });
         } catch (err: any) {
-          Alert.alert("Erreur", err.message || "Échec du téléversement.");
+          Alert.alert("Erreur d'envoi", err?.message || "Échec du téléversement du document.");
+        } finally {
+          setUploadingFile(false);
         }
-        setUploadingFile(false);
       }
-    } catch {}
+    } catch (err: any) {
+      Alert.alert("Erreur", err?.message || "Impossible d'ouvrir le sélecteur de fichiers.");
+    }
   };
 
   const dispatchSend = (textToSend: string, fileToSend: typeof pendingFile) => {

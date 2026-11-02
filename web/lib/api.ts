@@ -1,5 +1,5 @@
 /**
- * Centralized API client for IQChat Web.
+ * Centralized API client for HomiChat Web.
  * Handles base URL, JWT token injection, session cache cleanup, and safe retries.
  */
 
@@ -21,7 +21,7 @@ export function clearChatMemoryCache() {
  */
 export function getAuthData(): { token: string; user: any } | null {
   if (typeof window === "undefined") return null;
-  const raw = localStorage.getItem("iqchat_auth");
+  const raw = localStorage.getItem("homichat_auth") || localStorage.getItem("iqchat_auth");
   if (!raw) return null;
   try {
     return JSON.parse(raw);
@@ -34,8 +34,8 @@ export function getAuthData(): { token: string; user: any } | null {
  * Save auth data after login/register/profile update.
  */
 export function setAuthData(data: { token: string; user: any }) {
-  localStorage.setItem("iqchat_auth", JSON.stringify(data));
-  localStorage.setItem("iqchat_user", JSON.stringify(data.user));
+  localStorage.setItem("homichat_auth", JSON.stringify(data));
+  localStorage.setItem("homichat_user", JSON.stringify(data.user));
 }
 
 /**
@@ -44,6 +44,8 @@ export function setAuthData(data: { token: string; user: any }) {
 export function clearAuthData() {
   clearChatMemoryCache();
   if (typeof window !== "undefined") {
+    localStorage.removeItem("homichat_auth");
+    localStorage.removeItem("homichat_user");
     localStorage.removeItem("iqchat_auth");
     localStorage.removeItem("iqchat_user");
   }

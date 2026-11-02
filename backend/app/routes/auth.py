@@ -11,7 +11,7 @@ import os
 router = APIRouter()
 
 WELCOME_MESSAGE_CONTENT = (
-    "Bienvenue sur IQChat.\n\n"
+    "Bienvenue sur HomiChat.\n\n"
     "Vous rejoignez un espace de messagerie conçu pour le calme, la confidentialité et la communication intentionnelle (Slow Communication).\n\n"
     "Voici les modes d'échange à votre disposition :\n"
     "1. Messages Différés : Programmez la date et l'heure de visibilité d'un message afin d'écrire librement sans interrompre le repos ou la concentration de vos proches.\n"
@@ -20,20 +20,20 @@ WELCOME_MESSAGE_CONTENT = (
     "4. Mode Anonyme : Masquez votre identité sur un message ponctuel pour vous exprimer librement.\n"
     "5. Mini-Jeux au tour par tour : Lancez une partie de Morpion, Puissance 4, Pierre-Papier-Ciseaux ou Mot Mystère directement dans la conversation.\n\n"
     "Rendez-vous dans Paramètres pour configurer vos heures de quiétude, vos préférences de confidentialité et votre confort de lecture.\n\n"
-    "— L'Administration IQChat"
+    "— L'Administration HomiChat"
 )
 
 
 def send_welcome_message(db: Session, new_user: models.User):
     admin_user = db.query(models.User).filter(models.User.username == "admin").first()
     if not admin_user:
-        default_admin_pwd = os.getenv("ADMIN_INITIAL_PASSWORD", "admin_royal_gold_iqchat_pwd_2026")
+        default_admin_pwd = os.getenv("ADMIN_INITIAL_PASSWORD", "admin_royal_gold_homichat_pwd_2026")
         hashed = bcrypt.hashpw(default_admin_pwd.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
         admin_user = models.User(
             id=str(uuid.uuid4()),
             username="admin",
-            email="admin@iqchat.app",
-            full_name="Administration IQChat",
+            email="admin@homichat.app",
+            full_name="Administration HomiChat",
             bio="Compte officiel d'accompagnement et d'annonces.",
             hashed_password=hashed,
             avatar_url="https://api.dicebear.com/7.x/bottts/png?seed=admin",

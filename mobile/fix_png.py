@@ -31,11 +31,12 @@ def sanitize_directory(directory_path):
                 sanitize_png(full_path)
 
 if __name__ == "__main__":
+    base_dir = os.path.dirname(os.path.abspath(__file__))
     # Sanitize all mobile asset images
-    mobile_assets_dir = r"d:\IQChat\mobile\assets\images"
+    mobile_assets_dir = os.path.join(base_dir, "assets", "images")
     sanitize_directory(mobile_assets_dir)
     
     # Sanitize web public logo
-    web_logo_path = r"d:\IQChat\web\public\logo.png"
+    web_logo_path = os.path.abspath(os.path.join(base_dir, "..", "web", "public", "logo.png"))
     sanitize_png(web_logo_path)
 

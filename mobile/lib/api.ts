@@ -1,11 +1,16 @@
 /**
- * Centralized API client for IQChat Mobile.
+ * Centralized API client for HomiChat Mobile.
  * Handles base URL, JWT token injection, session cache cleanup, and file uploads.
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
+import { File as ExpoFile } from "expo-file-system";
+import { Platform } from "react-native";
 
 function resolveBaseUrl(): string {
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
+  }
   if (typeof __DEV__ !== "undefined" && __DEV__) {
     const hostUri = Constants.expoConfig?.hostUri;
     const lanHost = hostUri?.split(":")[0];
@@ -36,7 +41,9 @@ export function clearChatMemoryCache() {
  * Get stored auth data (token + user).
  */
 export async function getAuthData(): Promise<AuthData | null> {
-  const raw = await AsyncStorage.getItem("iqchat_auth");
+  const raw =
+    (await AsyncStorage.getItem("homichat_auth")) ||
+    (await AsyncStorage.getItem("iqchat_auth"));
   if (!raw) return null;
   try {
     return JSON.parse(raw);
@@ -49,8 +56,8 @@ export async function getAuthData(): Promise<AuthData | null> {
  * Save auth data after login/register/profile update.
  */
 export async function setAuthData(data: AuthData) {
-  await AsyncStorage.setItem("iqchat_auth", JSON.stringify(data));
-  await AsyncStorage.setItem("iqchat_user", JSON.stringify(data.user));
+  await AsyncStorage.setItem("homichat_auth", JSON.stringify(data));
+  await AsyncStorage.setItem("homichat_user", JSON.stringify(data.user));
 }
 
 /**
@@ -58,6 +65,8 @@ export async function setAuthData(data: AuthData) {
  */
 export async function clearAuthData() {
   clearChatMemoryCache();
+  await AsyncStorage.removeItem("homichat_auth");
+  await AsyncStorage.removeItem("homichat_user");
   await AsyncStorage.removeItem("iqchat_auth");
   await AsyncStorage.removeItem("iqchat_user");
 }
@@ -145,7 +154,7 @@ export async function apiFetch(
 }
 
 /**
- * Upload a file to the server. Returns the file info.
+ * Upload a file to the server (compatible with Expo SDK 58 `expo/fetch` + native `expo-file-system`).
  */
 export async function uploadFile(
   uri: string,
@@ -159,11 +168,24 @@ export async function uploadFile(
 }> {
   const auth = await getAuthData();
   const formData = new FormData();
-  formData.append("file", {
-    uri,
-    name: fileName,
-    type: mimeType,
-  } as any);
+
+  if (Platform.OS === "web") {
+    const fileRes = await fetch(uri);
+    const blob = await fileRes.blob();
+    formData.append("file", blob, fileName);
+  } else {
+    const normalizedUri =
+      uri.startsWith("file://") || uri.startsWith("content://") ? uri : `file://${uri}`;
+    const expoFile = new ExpoFile(normalizedUri);
+    formData.append(
+      "file",
+      {
+        name: fileName || expoFile.name || "attachment",
+        type: mimeType || expoFile.type || "application/octet-stream",
+        bytes: () => expoFile.bytes(),
+      } as any
+    );
+  }
 
   const headers: Record<string, string> = {};
   if (auth?.token) headers["Authorization"] = `Bearer ${auth.token}`;
@@ -175,7 +197,7 @@ export async function uploadFile(
   });
 
   if (!res.ok) {
-    const err = await res.json();
+    const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || "Échec de l'envoi du fichier");
   }
   return res.json();

@@ -1,9 +1,9 @@
-# fly.toml app configuration file generated for iqchatbackend on 2026-05-07T21:50:01+02:00
+# fly.toml app configuration file for HomiChat backend
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'iqchatbackend'
+app = 'homichatbackend'
 primary_region = 'cdg'
 
 [build]
@@ -12,11 +12,11 @@ primary_region = 'cdg'
   strategy = "immediate"
 
 [env]
-  DATABASE_URL = "sqlite:////data/iqchat.db"
+  DATABASE_URL = "sqlite:////data/homichat.db"
   UPLOAD_DIR = "/data/uploads"
 
 [[mounts]]
-  source = "iqchat_data"
+  source = "homichat_data"
   destination = "/data"
 [http_service]
   internal_port = 8000

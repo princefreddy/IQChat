@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "IQChat - The Royal Messenger",
-  description: "Secure, fun, and captivating messaging.",
+  title: "HomiChat — Messagerie Intentionnelle & Confidentielle",
+  description: "Messagerie calme, privée et maîtrisée.",
 };
 
 export default function RootLayout({
@@ -12,7 +12,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="fr">
       <body>
         {children}
       </body>

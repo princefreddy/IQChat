@@ -15,11 +15,12 @@ router = APIRouter()
 
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads")
 ALLOWED_EXTENSIONS = {
-    ".jpg", ".jpeg", ".png", ".gif", ".webp",
-    ".mp4", ".mp3", ".webm", ".m4a", ".wav", ".ogg",
-    ".pdf", ".doc", ".docx",
+    ".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".heif",
+    ".mp4", ".mov", ".m4v",
+    ".mp3", ".webm", ".m4a", ".wav", ".ogg", ".aac",
+    ".pdf", ".doc", ".docx", ".txt", ".csv", ".zip",
 }
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+MAX_FILE_SIZE = 25 * 1024 * 1024  # 25 MB
 
 
 def _require_chat_membership(db: Session, chat_id: str, user_id: str) -> models.ChatMember:
@@ -115,7 +116,7 @@ async def upload_file(
 
     content = await file.read()
     if len(content) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=400, detail="Fichier trop volumineux (max 10 MB)")
+        raise HTTPException(status_code=400, detail="Fichier trop volumineux (max 25 MB)")
 
     file_id = str(uuid.uuid4())
     filename = f"{file_id}{ext}"
@@ -139,9 +140,9 @@ async def upload_file(
             await f.write(content)
         file_url = f"/uploads/{filename}"
 
-    image_exts = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
-    video_exts = {".mp4"}
-    audio_exts = {".mp3", ".webm", ".m4a", ".wav", ".ogg"}
+    image_exts = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".heif"}
+    video_exts = {".mp4", ".mov", ".m4v"}
+    audio_exts = {".mp3", ".webm", ".m4a", ".wav", ".ogg", ".aac"}
 
     if ext in image_exts:
         file_type = "image"

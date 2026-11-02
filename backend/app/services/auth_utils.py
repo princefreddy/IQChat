@@ -1,5 +1,5 @@
 """
-JWT Authentication Utilities for IQChat.
+JWT Authentication Utilities for HomiChat.
 Provides token creation, verification, user quiet-hours evaluation, and FastAPI dependencies.
 """
 import os
@@ -13,7 +13,8 @@ from jose import JWTError, jwt
 from ..db.database import get_db
 from .. import models
 
-SECRET_KEY = os.getenv("SECRET_KEY", "iqchat-royal-secret-key-2026-change-in-production")
+SECRET_KEY = os.getenv("SECRET_KEY", "homichat-royal-secret-key-2026-change-in-production")
+LEGACY_SECRET_KEY = "iqchat-royal-secret-key-2026-change-in-production"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 72  # 3 days
 
@@ -29,24 +30,28 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 def verify_token(token: str) -> dict:
     """Verify and decode a JWT token. Raises HTTPException on failure."""
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
+        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token invalide ou expiré",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        try:
+            return jwt.decode(token, LEGACY_SECRET_KEY, algorithms=[ALGORITHM])
+        except JWTError:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token invalide ou expiré",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
 
 def resolve_ws_user_id(token: Optional[str], fallback_user_id: Optional[str] = None) -> Optional[str]:
     """Resolve user_id from a WebSocket JWT token (with safe transition fallback)."""
     if token:
-        try:
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            return payload.get("sub")
-        except JWTError:
-            return None
+        for key in (SECRET_KEY, LEGACY_SECRET_KEY):
+            try:
+                payload = jwt.decode(token, key, algorithms=[ALGORITHM])
+                return payload.get("sub")
+            except JWTError:
+                continue
+        return None
     return fallback_user_id
 
 

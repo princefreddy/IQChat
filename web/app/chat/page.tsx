@@ -71,7 +71,9 @@ export default function ChatPage() {
         if (!res.ok) return;
         const data = await res.json();
         if (data.latest_time) {
-          const lastSeen = localStorage.getItem("iqchat_last_seen_feed");
+          const lastSeen =
+            localStorage.getItem("homichat_last_seen_feed") ||
+            localStorage.getItem("iqchat_last_seen_feed");
           if (!lastSeen || new Date(data.latest_time).getTime() > new Date(lastSeen).getTime()) {
             if (activeView !== "feed") setHasNewFeed(true);
           }
@@ -86,7 +88,7 @@ export default function ChatPage() {
   const handleSwitchToFeed = () => {
     setActiveView("feed");
     setHasNewFeed(false);
-    localStorage.setItem("iqchat_last_seen_feed", new Date().toISOString());
+    localStorage.setItem("homichat_last_seen_feed", new Date().toISOString());
   };
 
   useEffect(() => {
